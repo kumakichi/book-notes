@@ -1,0 +1,1683 @@
+#+TITLE: programming in lua^3rd
+#+AUTHOR: kumakichi
+
+* chapter 1
+
+** comment
+starts anywhere with a double hyphen (- -) and runs until the end of the line
+
+start with - -[ [ and rununtil the next ]]
+
+** global variables
+do not need declarations
+
+* chapter 2
+
+Lua is a dynamically typed language
+
+** types
+
+nil booleans numbers strings literal-strings long-strings
+
+#+BEGIN_SRC lua
+> info=[[
+>> name lili
+>> age 20]]
+> print(info)
+#+END_SRC
+
+can add any number of equal signs between the two open brackets, 
+
+as in *[===[*,ends only at the next closing brackets with the same
+
+ number of equal signs in between *]===]*
+
+This same facility is valid for comments, too
+*--[=[*, *]=]*
+
+** \z for long strings
+lua 5.2 offers the escape sequence *\z*, it skips all subsequent characters in the string until the first non-space character
+
+#+BEGIN_SRC lua
+data = "\x00\x01\z
+         \x02\x03"
+#+END_SRC
+
+The \z at the end of the first line skips the following end-of-line and the inden-
+tation of the next line, so that the byte \x01 is directly followed by \x02 in the
+resulting string.
+
+** Coercions
+
+Lua provides automatic conversions between numbers and strings at run time
+#+BEGIN_SRC lua
+> print("10"+1)
+11
+> print("10+1")
+10+1
+#+END_SRC
+
+whenever Lua finds a number where it expects a string, it converts the number to a string
+
+#+BEGIN_SRC lua
+> print(1 .. 2) -- .. is the string concatenation operator in Lua
+12
+#+END_SRC
+
+use function 'tonumber' to convert a string to a number explicitly
+
+** tables
+
+The table type implements associative arrays,seems like 'map' in golang
+
+#+BEGIN_SRC lua
+> a={}
+> for i=1,100 do a[i] = i*2 end
+> print(a[ 9])
+18
+> print(a['y'])
+nil
+> a.x=10
+> print(a['x'])
+10
+#+END_SRC
+
+be careful of the difference between a.x and a[x]:
+
+the first form represents a["x"], that is, a table indexed by the string "x". 
+
+The second form is a table indexed by the value of the variable x.
+
+#+BEGIN_SRC lua
+> a={}
+> x="y"
+> a[x]=10
+> print(a["y"])
+10
+> print(a["x"])
+nil
+#+END_SRC
+ 
+** userdata and threads
+
+The userdata type allows arbitrary C data to be stored in Lua variables(interface in golang?)
+
+* expressions
+
+** arithmetic operators
+#+BEGIN_SRC lua
++ - * / ^(exponentiation) %(modulo)
+#+END_SRC
+
+#+BEGIN_SRC lua
+> print(4^0.5)
+2
+
+> x=math.pi
+> print(x-x%0.01)
+3.14
+#+END_SRC
+
+** relational operators
+
+#+BEGIN_QUOTE
+< > <= >= == ~=(negation of equality)
+#+END_QUOTE
+
+** logical operators
+
+and or not
+
+** concatenation
+
+'..'
+
+** length operator
+
+'#' 
+
+#+BEGIN_SRC lua
+> a={1,2,3,nil,nil}
+> print(#a)
+3
+#+END_SRC
+
+** table constructors
+
+index of table starts from *1*, not *0*
+
+#+BEGIN_SRC lua
+> days={"monday","tuesday"}
+> print(days[ 1])
+monday
+
+
+> tmp={color="red",
+>> age=27,
+>> {x=0,y=0},                   -- tmp[ 1]
+>> {x=1,y=1}                    -- tmp[ 2]
+>> }
+#+END_SRC
+
+fields with string indices that are not proper identifiers, use square brackets:
+#+BEGIN_SRC lua
+
+> opnames={["+"]="add",["-"]="sub"}
+
+> sunday = "monday"; monday = "sunday"
+> t = {sunday = "monday", [sunday] = monday}
+> print(t.sunday, t[sunday], t[t.sunday])
+monday	sunday	sunday
+
+> tmp={color="red"}
+> print(tmp.color)
+red
+> print(tmp[color])
+nil
+> print(tmp["color"])
+red
+#+END_SRC
+
+* statements
+
+just the same as go
+
+#+BEGIN_SRC lua
+> x=3
+> a,b=1,x*2
+> a,b=b,a
+> print(a,b)
+6	1
+#+END_SRC
+
+** local variables and blocks
+
+A block is the body of a control structure, the body of a function, 
+
+or a chunk (the file or string where the variable is declared):
+
+#+BEGIN_SRC lua
+x = 10
+local i = 1                     -- local to the chunk
+
+while i<=x do
+   local x = i*2                -- local to the while body
+   print(x)
+   i=i+1
+end
+#+END_SRC
+
+A common idiom in Lua is : local foo = foo,this code creates a local
+
+variable, foo, and initializes it with the value of the global variable foo
+
+** control structures
+
+*** if then else end
+
+#+BEGIN_SRC lua
+if op == "+" then
+	r = a + b
+elseif op == "-" then
+	r = a - b
+else
+	r = 0
+end
+#+END_SRC
+
+*** while
+
+#+BEGIN_SRC lua
+while i<x do
+	print(i)
+end
+#+END_SRC
+
+*** repeat
+
+#+BEGIN_SRC lua
+-- print the first non-empty input line
+
+repeat
+	line = io.read()
+until line ~= ""
+
+print(line)
+#+END_SRC
+
+*** for
+
+**** numeric for
+
+#+BEGIN_SRC lua
+-- [start,end] step
+
+> for i=1,10,2 do print(i) end
+1
+3
+5
+7
+9
+#+END_SRC
+
+**** generic for
+
+#+BEGIN_SRC lua
+> a={color="red","hello"}
+> for k,v in pairs(a) do print(k,v) end
+1	hello
+color	red
+#+END_SRC
+
+*** break return goto
+
+goto can simulate some constructions
+
+#+BEGIN_SRC lua
+  i=0
+  while i<10 do
+     if i % 2 == 1 then goto continue end
+     print(i)
+  
+        ::continue::
+        i=i+1
+  end
+#+END_SRC
+
+* functions
+
+** multiple results
+
+#+BEGIN_SRC lua
+  function maximum (a)
+     local idx = 1
+     local max = a[idx]
+     for i=1,#a do
+        if a[i] > max then
+           idx = i;max = a[i]
+        end
+     end
+     return idx,a[idx]
+  end
+  
+  print(maximum({3,7,8,6}))
+#+END_SRC
+
+unpack 
+
+#+BEGIN_SRC lua
+  -- predefined version
+  
+  > print(table.unpack({1,2,3,4,5},2,4))
+  2   3   4
+  
+  -- lua version
+  function lua_unpack (t,s,e)
+     s = s or 1
+     e = e or #t
+     if s <= e then
+        return t[s],lua_unpack(t,s+1,e)
+     end
+  end
+#+END_SRC
+
+** variadic functions
+
+#+BEGIN_SRC lua
+  function sum (...)
+     print("Calling sum with vars :",...)
+     local sum = 0
+     local args = table.pack(...)
+     print("vals num :", args.n)
+     for k,v in ipairs{...} do
+        sum = sum + v
+     end
+     local a,b = ...
+     print(a,b)
+     return sum
+  end
+#+END_SRC
+
+** named arguments
+
+#+BEGIN_SRC lua
+  function Window(args)
+     if type(args.title) ~= "string" then
+        error("no title")
+     elseif type(args.width) ~= "number" then
+        error("no width")
+     elseif type(args.height) ~= "number" then
+        error("no height")
+     end
+  
+     -- everything else is optional
+     return {
+        title=args.title,
+        width=args.width, height=args.height,
+        x = args.x or 0,         -- default x is 0
+        y = args.y or 0,         -- default y is 0
+        border = args.border      -- default border is nil
+     }
+  end
+  
+  function PrintWindow(w)
+     for k,v in pairs(w) do
+        print(k,v)
+     end
+  end
+  
+  PrintWindow(Window{title="Demo",width=640,height=480})
+#+END_SRC
+
+the derivative of a function f in a point x is the value of (f (x + d) − f (x))/d when d becomes infinitesimally small
+
+#+BEGIN_SRC lua
+  function derivative (f, delta)
+     delta = delta or 1e-4
+     return function (x)
+        return (f(x+delta)-f(x))/delta
+     end
+  end
+  
+  c = derivative(math.sin)
+  pi = math.pi
+  
+  print(c(pi),math.cos(pi))
+#+END_SRC
+
+** closures
+
+When we write a function enclosed in another function, it has full access to local variables from the enclosing function; we call this feature lexical scoping
+
+#+BEGIN_SRC lua
+  function counter()
+     local i=0
+     return function()
+        i=i+1
+        return i
+     end
+  end
+  
+  c = counter()
+  
+  for i=1,3 do
+     print(c())
+  end
+#+END_SRC
+
+do everything in 'local'
+
+#+BEGIN_SRC lua
+  -- bad way
+  -- local x = print
+  -- x(3)
+  -- x(x)
+  
+  -- good way
+  do
+     local x = print
+     x(3)
+  end
+  x(x) -- error, x is nil
+#+END_SRC
+
+** non-global functions
+
+#+BEGIN_SRC lua
+  -- Lib = {}
+  -- Lib.add = function (a,b) return a+b end
+  -- Lib.sub = function (a,b) return a-b end
+  
+  Lib = {
+     add = function (a,b) return a+b end,
+     sub = function (a,b) return a-b end
+  }
+#+END_SRC
+
+** proper tail calls
+
+Lua does tail-call elimination,which means that Lua is properly tail recursive
+
+In Lua, only a call with the form *return func(args)* is a tail call
+
+#+BEGIN_SRC lua
+  function fibo(n,a,b)
+     if n == 0 then
+        return a
+     else
+        return fibo(n-1,a+b,a) -- position 'a' hold sumed value
+     end
+  end
+#+END_SRC
+
+* iterators and the generic for
+
+** iterators and closures
+
+#+BEGIN_SRC lua
+  function values(t)
+     local i=0
+     return function () i=i+1; return t[i] end
+  end
+  
+  x={1,2,3}
+  iterator=values(x)
+  
+  -- one way
+  
+  while true do
+     local element = iterator()
+     if element == nil then break end
+     print(element)
+  end
+  
+  -- another way
+  for val in values(x) do
+     print(val)
+  end
+#+END_SRC
+
+** the semantics of generic for
+
+#+BEGIN_SRC lua
+for <var-list> in <exp-ilst> do
+	<body>
+end
+#+END_SRC
+
+Here, var-list is a list of one or more variable names, separated by commas, and exp-list is a list of one or more expressions, also separated by commas
+
+These expressions should result in the three values kept by the for: the iterator function, the invariant state, and the initial value for the control variable
+
+remember *for* will adjust its expression list to *3* results,extra values being discarded or nils added as needed
+
+After this initialization step, the for calls the iterator function with two arguments: the invariant state and the control variable
+
+#+BEGIN_SRC lua
+  function iter (a,i)
+     i=i+1
+     local v=a[i]
+     if v ~= nil then
+        return i,v                -- the first retval will be used as the new value of the control variable
+     end
+  end
+  
+  function lua_ipairs(a)
+     return iter,a,0              -- iterator function, invariant state, initial value for the control variable
+  end
+  
+  for k,v in lua_ipairs({1,2,3}) do
+     print(k,v)                   -- lua calls iter(a,0), iter(a,1) ...
+  end
+#+END_SRC
+
+** stateless iterators
+
+The key point is: do not use closure
+
+The state of the iteration is the table being traversed (that is the invariant state, which does not change during the loop), plus the current index (the control variable)
+
+#+BEGIN_SRC lua
+  for k,v in next,{1,2,3} do      -- iter->'next',invariant->'{1,2,3}',nil
+     print(k,v)
+  end
+#+END_SRC
+
+#+BEGIN_SRC lua
+  -- linked list,insert at head
+  
+  function getnext (list, node)
+     if not node then
+        return list
+     else
+        return node.next
+     end
+  end
+  
+  function traverse (list)
+     return getnext, list, nil
+  end
+  
+  -- use it
+  do
+     local list = nil
+     for line in io.lines() do
+        list = {val = line, next = list}
+     end
+  
+     for node in traverse(list) do
+        print(node.val)
+     end
+  end
+  
+  -- but i think, it may be more clearly int this way
+  function getnext (list, node)
+     if not node then
+        node = list
+     else
+        node = node.next
+     end
+     return node
+  end
+#+END_SRC
+
+** iterators with complex state
+
+Frequently, an iterator needs to keep more state than fits into a single invariant state and a control variable.
+
+Although the state is always the same table (and therefore *invariant*), the table *contents* change along the loop.
+
+*TABLE* not changed, but the *CONTENT* changed
+
+#+BEGIN_SRC lua
+  function allwords()
+     local state={line=io.read(),pos=1}
+     return iter,state,nil
+  end
+  
+  function iter(state)
+     while state.line do -- repeat while there are lines
+        -- search for next word
+        local s, e = string.find(state.line, "%w+", state.pos)
+        if s then
+           -- found a word?
+           -- update next position (after this word)
+           state.pos = e + 1
+           return string.sub(state.line, s, e)
+        else
+           -- word not found
+           state.line = io.read() -- try next line...
+           state.pos = 1
+           -- ... from first position
+        end
+     end
+     return nil
+  end
+  
+  for v in allwords() do
+     print(v)
+  end
+#+END_SRC
+
+** true iterators
+
+#+BEGIN_SRC lua
+  function allwords(f)
+     for line in io.lines() do
+        for word in string.gmatch(line,"%w+") do
+           f(word)
+        end
+     end
+  end
+  
+  allwords(print)
+#+END_SRC
+
+* complilation,execution,errors
+
+** complilation
+
+#+BEGIN_SRC lua
+  i = 32
+  local i = 0
+  
+  f = load("i=i+1;print(i)")
+  g = function() i=i+1;print(i) end
+  f()                             -- because load always compiles its chunks in the global environment
+  
+  g()
+#+END_SRC
+
+#+BEGIN_SRC lua
+  -- foo.lua
+  -- 
+  -- function foo(x)
+  --    print(x)
+  -- end
+  
+  f = loadfile("foo.lua")
+  print(foo)                      -- nil(foo is compiled, but it is not defined yet
+  )
+  f()                             -- define foo
+  print(foo)                      -- function: 0x8b6ed20
+#+END_SRC
+
+** precompiled code
+
+#+BEGIN_SRC sh
+luac -o foo.lc foo.lua
+#+END_SRC
+
+Code in precompiled form is not always smaller than the original, but it loads faster
+
+** c code
+
+The loadlib function loads the given library and links Lua to it, it returns the C function as a Lua function.
+
+local path = "/usr/local/lib/lua/5.1/socket.so"
+local f = package.loadlib(path, "luaopen_socket")
+
+** error
+
+#+BEGIN_SRC lua
+  print "enter a number:"
+  -- n = io.read("*n")
+  -- if not n then error("you should input a number") end
+  
+  -- 'assert' equals the 2 lines above 
+  -- The assert function checks whether its first argument is not false and simply returns this argument; if the argument is false, assert raises an error
+  n = assert(io.read("*n"),"you should input a number")
+  print(n)
+#+END_SRC
+
+** error handling and exceptions
+
+#+BEGIN_SRC lua
+  local ok,msg = pcall(function()
+        n=io.read()
+        assert(tonumber(n),"not a number")
+        return tonumber(n)
+  end)
+  
+  if ok then
+     print(msg)
+  else
+     print("not ok")
+  end
+#+END_SRC
+
+** error messages and tracebacks
+
+#+BEGIN_SRC lua
+print(debug.traceback())
+#+END_SRC
+
+#+BEGIN_SRC lua
+  function foo (str)
+     if type(str) ~= "string" then
+        error("string expected",2) -- here,2 means the error comes not from 'foo', but the caller of 'foo'
+     end
+     return "hello " .. str
+  end
+  
+  function bar()
+     print(foo("sanye"))
+     print(foo(3))
+  end
+  
+  bar()
+#+END_SRC
+
+* coroutines
+
+** coroutine basics
+
+#+BEGIN_SRC lua
+  demo=coroutine.create(function () print("hi") end)
+  print(demo)                     -- thread: 0x9410a70
+  print(coroutine.status(demo))   -- suspended
+  coroutine.resume(demo)          -- use 'resume' to start/restart coroutine
+#+END_SRC
+
+The real power of coroutines stems from the yield function,which allows a running coroutine to suspend its own execution so that it can be resumed later
+
+#+BEGIN_SRC lua
+  demo=coroutine.create(function () 
+        for i=1,10 do
+           print("demo",i)
+           coroutine.yield()
+        end
+  end)
+  
+  coroutine.resume(demo)          -- 1
+  coroutine.resume(demo)          -- 2
+#+END_SRC
+
+#+BEGIN_SRC lua
+  demo=coroutine.create(function () 
+        return 3,4
+  end)
+  
+  print(coroutine.resume(demo))   -- true    3   4
+  print(coroutine.resume(demo))   -- false   cannot resume dead coroutine
+#+END_SRC
+
+Lua offers what we call *asymmetric coroutines* (which means that it has a function to suspend the execution of a coroutine and a different function to resume a suspended coroutine)
+
+Some other languages offer *symmetric coroutines*, where there is only one function to transfer control from any coroutine to another
+
+Some people call asymmetric coroutine *semi-coroutines* (being not symmetrical, they are not really co)
+
+** pipes and filters
+
+#+BEGIN_SRC lua
+  producer = coroutine.create(function ()
+        while true do
+           local x=io.read()
+           send(x)
+        end
+  end)
+  
+  function consumer ()
+     while true do
+        local x = receive()
+        if x ~= nil then
+           io.write(x,"\n")
+        else
+           return
+        end
+     end
+  end
+  
+  function receive ()
+     local status,val = coroutine.resume(producer) -- cosumer wake 'producer' up
+     return val
+  end
+  
+  function send (x)
+     coroutine.yield(x)
+  end
+  
+  consumer()
+#+END_SRC
+
+a better way
+
+#+BEGIN_SRC lua
+  function receive (prod)         -- producer func
+     local status,val = coroutine.resume(prod)
+     return val
+  end
+  
+  function send (x)
+     coroutine.yield(x)
+  end
+  
+  function producer ()
+     return coroutine.create(function ()
+           while true do
+              local x = io.read()
+              send(x)
+           end
+     end)
+  end
+  
+  function filter (prod)
+     return coroutine.create(function ()
+           for line=1,math.huge do
+              local x=receive(prod)
+              x=string.format("%-5d %s",line,x)
+              send(x)
+           end
+     end)
+  end
+  
+  function consumer (prod)
+     while true do
+        local x = receive(prod)
+        io.write(x,"\n")
+     end
+  end
+  
+  consumer(filter(producer()))
+#+END_SRC
+
+** coroutines as iterators
+
+#+BEGIN_SRC lua
+  function permgen (a, n)
+     n = n or #a
+     if n <= 1 then
+        coroutine.yield(a)
+     else
+        for i = 1, n do
+           a[n], a[i] = a[i], a[n]
+           permgen(a, n - 1)
+           a[n], a[i] = a[i], a[n]
+        end
+     end
+  end
+  
+  function printResult (a)
+     for i = 1, #a do
+        io.write(a[i], " ")
+     end
+     io.write("\n")
+  end
+  
+  function permutations (a, n)
+     -- local co = coroutine.create(function() permgen(a,n) end)
+     -- return function ()
+     --    local ok,result = coroutine.resume(co)
+     --    return result
+     -- end
+     return coroutine.wrap(function() permgen(a,n) end)
+  end
+  
+  for p in permutations{"a","b","c"} do
+     printResult(p)
+  end
+#+END_SRC
+
+Unlike create, wrap does not return the coroutine itself; instead, it returns a function that, when called, resumes the coroutine. 
+
+Unlike the original resume, that function does not return an error code as its first result; instead, it raises the error in case of error
+
+** non-preemptive multithreading
+
+coroutines are non-preemptive, which means while a coroutine is running, it cannot be stopped from the outside
+
+* data structures
+
+** queues and double queues
+
+#+BEGIN_SRC lua
+  List={}                         -- namespace
+  
+  function List.new ()
+     return {first = 0, last = -1}
+  end
+  
+  function List.pushfirst (list, value)
+     local first = list.first - 1
+     list.first = first
+     list[first] = value
+  end
+  
+  function List.pushlast (list, value)
+     local last = list.last + 1
+     list.last = last
+     list[last] = value
+  end
+  
+  function List.popfirst (list)
+     local first = list.first
+     assert(first<=list.last, "list is empty")
+     local value = list[first]
+     list[first] = nil   -- to allow garbage collection
+     list.first = first + 1
+     return value
+  end
+  
+  function List.poplast (list)
+     local last = list.last
+     assert(list.first <= last, "list is empty")
+     local value = list[last]
+     list[last] = nil   -- to allow garbage collection
+     list.last = last - 1
+     return value
+  end
+  
+  l = List.new()
+  
+  for i = 1,10 do
+     List.pushfirst(l,i)
+  end
+  
+  for i = 1,10 do
+     print(List.popfirst(l))
+  end
+#+END_SRC
+
+** sets and bags
+
+Bags, also called multisets, differ from regular sets in that each element can appear multiple times
+
+#+BEGIN_SRC lua
+  -- set
+  s={"red","blue"}
+  
+  -- bag
+  Bag = {
+     new = function ()
+        return {}
+     end,
+     insert = function (b,element)
+        b[element] = (b[element] or 0) + 1
+     end,
+     remove = function (b, element)
+        local count = b[element]
+        b[element] = (count and count > 1) and count - 1 or nil
+     end
+  }
+#+END_SRC
+
+** string buffers
+
+#+BEGIN_SRC lua
+  local buff = ""
+  for line in io.lines() do
+     buff = buff .. line .. "\n"  -- poor performance when processing large files
+  end
+#+END_SRC
+
+for each new line,lua allocates a large buff,copy,move,growing...
+
+this way
+
+#+BEGIN_SRC lua
+  local t = {}
+  for line in io.lines() do
+     t[#t + 1] = line
+  end
+  local s = table.concat(t, "\n")
+#+END_SRC
+
+* data files and persistence
+
+tmp.lua
+#+BEGIN_QUOTE
+Entry{
+   author = "Donald E. Knuth",
+   title = "Literate Programming",
+   publisher = "CSLI",
+   year = 1992
+}
+
+Entry{
+   author = "Jon Bentley",
+   title = "More Programming Pearls",
+   year = 1990,
+   publisher = "Addison-Wesley",
+}
+#+END_QUOTE
+
+#+BEGIN_SRC lua
+  local authors={}
+  
+  function Entry(b)
+     authors[b.author] = b.title
+  end
+  
+  dofile("tmp.lua")
+  
+  for k,v in pairs(authors) do
+     print(v," is written by ", k)
+  end
+#+END_SRC
+
+* metatables and metamethords
+
+Each value in Lua can have an associated metatable
+
+#+BEGIN_SRC lua
+  local t={}
+  local t1={}
+  
+  print(getmetatable(t))          -- nil
+  setmetatable(t,t1)
+  print(getmetatable(t))          -- table: 0x8967da8
+#+END_SRC
+
+** arithmetic metamethods
+
+#+BEGIN_SRC lua
+  mt = {}
+  Set = {}
+  
+  -- create a new set with the values of a given list
+  function Set.new (l)
+     local set = {}
+     setmetatable(set, mt)
+     for _, v in ipairs(l) do set[v] = true end
+     return set
+  end
+  
+  function Set.union (a, b)
+     local res = Set.new{}
+     for k in pairs(a) do res[k] = true end
+     for k in pairs(b) do res[k] = true end
+     return res
+  end
+  
+  function Set.intersection (a, b)
+     local res = Set.new{}
+     for k in pairs(a) do
+        res[k] = b[k]
+     end
+     return res
+  end
+  
+  -- presents a set as a string
+  function Set.tostring (set)
+     local l = {}
+     -- list to put all elements from the set
+     for e in pairs(set) do
+        l[#l + 1] = e
+     end
+     return "{" .. table.concat(l, ", ") .. "}"
+  end
+  
+  -- print a set
+  function Set.print (s)
+     print(Set.tostring(s))
+  end
+  
+  s1 = Set.new{10, 20, 30, 50}
+  s2 = Set.new{30, 1}
+  
+  mt.__add = Set.union
+  mt.__mul = Set.intersection
+  
+  Set.print(s1+s2)
+  Set.print((s1 + s2)*s1)
+#+END_SRC
+
+** relational metamethods
+
+__eq __lt __le
+
+#+BEGIN_SRC lua
+  mt = {}
+  Set = {}
+  
+  function Set.new (l)
+     local set = {}
+     setmetatable(set, mt)
+     for _, v in ipairs(l) do set[#set+1] = v end
+     return set
+  end
+  
+  mt.__eq = function (a,b)
+     if #a == #b then return true end
+     return false
+  end
+  
+  a = Set.new{1,2,3}
+  b = Set.new{4,5,6}
+  print(a==b)
+#+END_SRC
+
+** library-defined metamethods
+
+Functions setmetatable and getmetatable also use a metafield, in this case to protect metatables
+
+#+BEGIN_SRC lua
+  mt = {}
+  Set = {}
+  
+  function Set.new ()
+     local set = {}
+     setmetatable(set, mt)
+     return set
+  end
+  
+  mt.__metatable = "hello world"
+  print(getmetatable(Set.new()))
+#+END_SRC
+
+** table-access metamethods
+
+*** __index
+
+#+BEGIN_SRC lua
+  mt = {}
+  Set = {x=1,y=2,width=640,height=480}
+  
+  mt.__index = function (_, key)
+     return Set[key]
+  end
+  
+  function new (o)
+     setmetatable(o,mt)
+     return o
+  end
+  
+  w = new{x=3,y=4}
+  print(w.width)
+#+END_SRC
+
+*** __newindex
+
+The __newindex metamethod does for table updates what __index does for table accesses
+
+*** table with default values
+
+#+BEGIN_SRC lua
+  local mt = {__index = function (t) return t.xxoo end}
+  function setDefault (t,d)
+     t.xxoo = d
+     setmetatable(t,mt)
+  end
+  
+  tmp={x=1,y=2}
+  setDefault(tmp,88)
+  print(tmp.z)                    -- 88
+#+END_SRC
+
+If we are worried about name clashes, it is easy to ensure the uniqueness of the special key
+
+#+BEGIN_SRC lua
+  local key = {}                  -- unique key
+  local mt = {__index = function (t) return t[key] end}
+  function setDefault (t,d)
+     t[key] = d
+     setmetatable(t,mt)
+  end
+#+END_SRC
+
+*** tracking table accesses
+
+#+BEGIN_SRC lua
+  local index = {} -- create private index
+  
+  local mt = { -- create metatable
+     __index = function (t, k)
+        print("*access to element " .. tostring(k))
+        return t[index][k] -- access the original table
+     end,
+     __newindex = function (t, k, v)
+        print("*update of element " .. tostring(k) ..
+                 " to " .. tostring(v))
+        t[index][k] = v -- update original table
+     end,
+  }
+  
+  __pairs = function (t)
+     return function (t, k)
+        return next(t[index], k)
+     end, t
+  end
+  
+  function track (t)
+     local proxy = {}
+     proxy[index] = t
+     setmetatable(proxy, mt)
+     return proxy
+  end
+  
+  t = {}
+  tmp = track(t)
+  tmp[2]="hello"
+  print(tmp[2])
+  print("orig:",t[2])
+#+END_SRC
+
+*** read-only tables
+
+#+BEGIN_SRC lua
+  function readOnly (t)
+     local proxy = {}
+     local mt = { -- create metatable
+        __index = t,
+        __newindex = function (t, k, v)
+           error("attempt to update a read-only table", 2)
+        end
+     }
+     setmetatable(proxy, mt)
+     return proxy
+  end
+  
+  days = readOnly{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+  
+  print(days[1])
+  days[2] = "Noday"
+#+END_SRC
+
+* the environment
+
+** global-variable declarations
+
+#+BEGIN_SRC lua
+  print(xxoo)                     -- nil
+  setmetatable(_G,{
+                  __newindex=function(_,n)
+                     error("attemp to write to undeclared variable " .. n, 2)
+                  end,
+                  __index=function(_,n)
+                     error("attemp to read undeclared variable " .. n, 2)
+                  end,
+  })
+  xxoo="hello"
+  print(xxoo)
+#+END_SRC
+
+then, we can only use 'rawset' to declare new variables
+
+#+BEGIN_SRC lua
+  function declare (name, initval)
+     if rawget(_G,name) == nil then
+        rawset(_G, name, initval or false)
+     end
+  end
+  
+  print(xxoo)                     -- nil
+  setmetatable(_G,{
+                  __newindex=function(_,n)
+                     error("attemp to write to undeclared variable " .. n, 2)
+                  end,
+                  __index=function(_,n)
+                     error("attemp to read undeclared variable " .. n, 2)
+                  end,
+  })
+  
+  declare('xxoo', "hello world")
+  print(xxoo)
+#+END_SRC
+
+** non-global environments
+
+the Lua compiler translates any free name var to _ENV.var,so
+
+#+BEGIN_SRC lua
+  var1 = var2 + 3
+  -- equal to
+  _ENV.var1 = _ENV.var2 + 3
+#+END_SRC
+
+Lua treats any chunk as an anonymous function,so Lua compiles original chunk as the following code:
+
+#+BEGIN_SRC lua
+  local _ENV = <some value>
+     return function (...)
+        _ENV.var1 = _ENV.var2 + 3
+     end
+#+END_SRC
+
+In Lua5.2:
+
++ Lua compiles any chunk in the scope of an upvalue called \_ENV
++ The compiler translates any free name var to \_ENV.var
++ The load (or loadfile) function initializes the first upvalue of a chunk with the global environment
+
+** using \_ENV
+
+#+BEGIN_SRC lua
+  a=3
+  local a=2
+  print(a)                        -- 2
+  print(_ENV.a)                   -- 3
+  
+  local print,hehe,pi = print, math.sin,math.pi
+  _ENV=nil
+  
+  print(hehe(pi/2))               -- 1
+  print(math.cos(pi))             -- lua: qr_6877e3I.lua:6: attempt to index upvalue '_ENV' (a nil value)
+#+END_SRC
+
+* modules and packages
+
+#+BEGIN_SRC lua
+  local m = require "math"
+  print(m.sin(m.pi/2))            -- 1
+#+END_SRC
+
+** the require function
+
+The first step of require is to check in table package.loaded whether the module is already loaded
+
+If the module is not loaded yet, require searches for a Lua file with the module name. If it finds a Lua file, it loads it with loadfile. The result of that is a function that we call a loader(The loader is a function that, when called,loads the module)
+
+If require cannot find a Lua file with the module name, it searches for a C library with the module name. If it finds a C library, it loads it with package.loadlib, looking for a function called luaopen\_modname
+
+If the loader returns any value, require returns this value and stores it in the package.loaded table to return the same value in future calls for this same module. If the loader returns no value, require behaves as if the module returned true. 
+
+Without this correction, a subsequent call to require would run the module again
+
++ renaming a module
+
+for processing different version,we can rename modules with names like 'v1-mod',for instance
+
++ path searching
+
+the path that *require* use to search for lua files is stored in *package.path*
+
+#+BEGIN_SRC lua
+  > print(package.path)
+  /usr/local/share/lua/5.2/?.lua;/usr/local/share/lua/5.2/?/init.lua;/usr/local/lib/lua/5.2/?.lua;/usr/local/lib/lua/5.2/?/init.lua;./?.lua
+#+END_SRC
+
+When Lua starts, it initializes this variable with the value of the environment variable LUA\_PATH\_5\_2. If this environment variable is not defined, Lua tries the environment variable LUA\_PATH.
+
+If both are not defined, Lua uses a compiled-defined default path
+
++ searchers
+
+A searcher is simply a function that receives the module name and returns either a loader for that module or nil if it cannot find one
+
+The array package.searchers lists the searchers that require uses. When looking for a module, require calls each searcher in the list passing the modulename, until one of them finds a loader for the module
+
+If the list ends without a positive response, require raises an error
+
+The preload searcher allows the definition of an arbitrary function to load a module. It uses a table, called package.preload, to map module names to loader functions
+
+** the basic approach for writing modules in lua
+
+#+BEGIN_SRC lua
+  -- complex.lua
+  local M = {}
+  
+  function M.new (r, i) return {r=r, i=i} end
+  
+  -- defines constant 'i'
+  M.i = M.new(0, 1)
+  
+  function M.add (c1, c2)
+     return M.new(c1.r + c2.r, c1.i + c2.i)
+  end
+  
+  function M.sub (c1, c2)
+     return M.new(c1.r - c2.r, c1.i - c2.i)
+  end
+  
+  function M.mul (c1, c2)
+     return M.new(c1.r*c2.r - c1.i*c2.i, c1.r*c2.i + c1.i*c2.r)
+  end
+  
+  local function inv (c)
+     local n = c.r^2 + c.i^2
+     return M.new(c.r/n, -c.i/n)
+  end
+  
+  function M.div (c1, c2)
+     return M.mul(c1, inv(c2))
+  end
+  
+  function M.tostring (c)
+     return "(" .. c.r .. "," .. c.i .. ")"
+  end
+  
+  return M
+  
+  -- demo.lua
+  local cpx = require "complex"
+  print(cpx.tostring(cpx.add(cpx.new(3,4), cpx.i))) -- (3,5)
+#+END_SRC
+
+module with export list
+
+#+BEGIN_SRC lua
+  -- kumakichi.lua
+  local function hello() print("hello world") end
+  
+  return {
+     say = hello
+  }
+  -- demo.lua
+  local k = require "kumakichi"
+  k.say()                         -- hello world
+  
+#+END_SRC
+
+** using environments
+
+#+BEGIN_SRC lua
+  -- module setup
+  local M = {}
+  
+  -- Import Section:
+  -- declare everything this module needs from outside
+  local sqrt = math.sqrt
+  local io = io
+  
+  -- no more external access after this point
+  _ENV = nil -- or _ENV = M
+#+END_SRC
+
+** submodules and packages
+
+a module named mod.sub is a submodule of mod, a package is a complete tree of modules
+
+* object-orented programming
+
+#+BEGIN_SRC lua
+  Account = {balance=0}
+  
+  -- function Account.withdraw (self,v)
+  --    self.balance = self.balance - v
+  -- end
+  
+  -- a,Account=Account,nil
+  -- a.withdraw(a,100)
+  
+  function Account:withdraw (v)   -- using *colon operator* to hide *this*
+     self.balance = self.balance - v
+  end
+  a,Account=Account,nil
+  a:withdraw(100)
+  
+  print(a.balance)
+#+END_SRC
+
+** classes
+
+#+BEGIN_SRC lua
+  setmetatable(a, {__index = b})
+#+END_SRC
+
+After that, a looks up in b for any operation that it *does not have*. To see b as the class of object a is not much more than a change in terminology
+
+#+BEGIN_SRC lua
+  Account = {balance=0}
+  
+  function Account:new (o)
+     o = o or {}                  -- create table if user does not provide one
+  
+     setmetatable(o, self)        -- without the 2 lines, attempt to call method 'deposit' (a nil value)
+     self.__index = self          -- When we call Account:new, self is equal to Account
+  
+     return o
+  end
+  
+  function Account:deposit (v)
+     self.balance = self.balance + v
+  end
+  
+  a = Account:new()
+  a:deposit(100.00)               -- getmetatable(a).__index.deposit(a, 100.00)
+  print(a.balance)
+#+END_SRC
+
+** inheritance
+
+#+BEGIN_SRC lua
+  Account = {balance=0}
+  
+  function Account:new (o)
+     o = o or {}                  -- create table if user does not provide one
+  
+     setmetatable(o, self)        -- without the 2 lines, attempt to call method 'deposit' (a nil value)
+     self.__index = self
+  
+     return o
+  end
+  
+  function Account:deposit (v)
+     self.balance = self.balance + v
+  end
+  
+  -- SpecialAccount inherits new from Account, like any other method. This time,
+  -- however, when new executes, its self parameter will refer to SpecialAccount.
+  -- Therefore, the metatable of s will be SpecialAccount, whose value at field
+  -- __index is also SpecialAccount. So, s inherits from SpecialAccount, which
+  -- inherits from Account
+  
+  BossAccount = Account:new()
+  
+  -- redefine 'deposit'
+  function BossAccount:deposit (v)
+     if v + self.balance < self:getLeast() then
+        self.balance = self:getLeast()
+     end
+  end
+  
+  function BossAccount:getLeast ()
+     return self.atleast or 0
+  end
+  
+  s = BossAccount:new{atleast=10000.00}
+  s:deposit(-88)
+  print(s.balance)
+#+END_SRC
+
+** multipule inheritance
+
+#+BEGIN_SRC lua
+  -- look up for 'k' in list of tables 'plist'
+  local function search (k, plist)
+     for i = 1, #plist do
+        local v = plist[i][k]      -- try 'i'-th superclass
+        if v then return v end
+     end
+  end
+  
+  function createClass (...)
+     local c = {}   -- new class
+     local parents = {...}
+     -- class will search for each method in the list of its parents
+     setmetatable(c, {__index = function (t, k)
+                         return search(k, parents)
+     end})
+  
+     -- prepare 'c' to be the metatable of its instances
+     c.__index = c
+  
+     -- define a new constructor for this new class
+     function c:new (o)
+        o = o or {}
+        setmetatable(o, c)
+        return o
+     end
+     return c
+  end                             -- return new class
+  
+  -- xxxxxxxxxxxxxxxxxxxxxxxxx
+  
+  Named = {}
+  
+  function Named:getname ()
+     return self.name
+  end
+  
+  function Named:setname (n)
+     self.name = n
+  end
+  
+  Account = {balance=0}
+  
+  function Account:new (o)
+     o = o or {}                  -- create table if user does not provide one
+     return o
+  end
+  
+  function Account:deposit (v)
+     self.balance = self.balance + v
+  end
+  -- xxxxxxxxxxxxxxxxxxxxxxx
+  NamedAccount = createClass(Account, Named)
+  account = NamedAccount:new{name = "Paul"}
+  account:deposit(88)
+  print(account:getname(), account.balance)        -- Paul
+#+END_SRC
+
+** single-method approach
+
+#+BEGIN_SRC lua
+function newObject (value)
+   return function (action, v)
+      if action == "get" then return value
+      elseif action == "set" then value = v
+      else error("invalid action")
+      end
+   end
+end
+
+d = newObject(0)
+print(d("get"))                 -- 0
+d("set", 10)
+print(d("get"))                 -- 10
+#+END_SRC
+
+* weak tables and finalizers
+
+** weak tables
+
+The weakness of a table is given by the field __mode of its metatable. The value of this field, when present, should be a string: 
+
+if this string is "k", the keys in the table are weak; if this string is "v", the values in the table are weak; if this string is "kv", both keys and values are weak
+
+#+BEGIN_SRC lua
+  a = {}
+  b = {__mode = "k"}
+  setmetatable(a, b)              -- now 'a' has weak keys
+  
+  key = {}                        -- creates first key
+  a[key] = 1
+  
+  key = {}                        -- creates second key
+  a[key] = 2
+  collectgarbage()                -- forces a garbage collection cycle
+  for k, v in pairs(a) do print(v) end
+#+END_SRC
+
+As there is no other reference to the first key, this key is collected and the corresponding entry in the table is removed
+
+The second key, however, is still anchored in variable key, so it is not collected
+
+** memorize functions
+
+#+BEGIN_SRC lua
+  local results = {}
+  function mem_loadstring (s)
+     local res = results[s]
+     if res == nil then
+        res = assert(load(s))
+        results[s] = res
+     end
+     return res
+  end
+#+END_SRC
+
+** revisiting tables with default values
+
++ solution 1
+
+#+BEGIN_SRC lua
+  local defaults = {}
+  setmetatable(defaults, {__mode="k"})
+  
+  local mt = {__index = function (t) return defaults[t] end}
+  
+  function setDefault (t, d)
+     defaults[t] = d
+     setmetatable(t, mt)
+  end
+#+END_SRC
+
++ solution 2
+
+#+BEGIN_SRC lua
+  local metas = {}
+  setmetatable(metas,{__mode="v"})
+  
+  function setDefault (t,d)
+     local mt = metas[d]
+     if mt == nil then
+        mt = {__index = function () return d end}
+        metas[d] = mt
+     end
+     setmetatable(t,mt)
+  end
+#+END_SRC
+
+** finalizers
+
+#+BEGIN_SRC lua
+  o = {x = "hi"}
+  setmetatable(o, {__gc = function (o) print(o.x) end})
+  o = nil
+  collectgarbage()                -- hi
+#+END_SRC
+
+#+BEGIN_SRC lua
+  mt = {__gc = function (o) print(o[1]) end}
+  list = nil
+  for i = 1, 3 do
+     list = setmetatable({i, link = list}, mt)
+  end
+  list = nil
+  collectgarbage()
+  -- 3
+  -- 2
+  -- 1
+#+END_SRC
