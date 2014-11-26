@@ -1681,3 +1681,656 @@ The second key, however, is still anchored in variable key, so it is not collect
   -- 2
   -- 1
 #+END_SRC
+
+* the mathematical library
+
+#+BEGIN_SRC lua
+  math.randomseed(os.time())
+  print(math.random())
+#+END_SRC
+
+* the bitwise library
+
+Because and, or, and not are reserved words in Lua, these operations are called respectively band, bor, and bnot
+
+#+BEGIN_SRC lua
+  function printx (x)
+     print(string.format("0x%X", x))
+  end
+  
+  printx(bit32.band(0xDF, 0xFD))  -- 0xDD
+  printx(bit32.bor(0xD0, 0x0D))   -- 0xDD
+  printx(bit32.bxor(0xD0, 0xFF))  -- 0x2F
+  printx(bit32.bnot(0))           -- 0xFFFFFFFF
+  
+  printx(bit32.rshift(0xDF, 4))   -- 0xD
+  printx(bit32.lshift(0xDF, 4))   -- 0xDF0
+  printx(bit32.rshift(-1, 28))    -- 0xF
+  printx(bit32.arshift(-1, 28))   -- 0xFFFFFFFF
+  printx(bit32.lrotate(0xABCDEF01, 4)) -- 0xBCDEF01A
+  printx(bit32.rrotate(0xABCDEF01, 4)) -- 0x1ABCDEF0
+  
+#+END_SRC
+
+Function btest performs the same operation as band, but returns a boolean indicating whether the result is different from zero
+
+#+BEGIN_SRC lua
+  print(bit32.btest(12,1))        -- false
+  print(bit32.btest(13,1))        -- true
+#+END_SRC
+
+bit32.extract(x, f, w) returns w bits from x, starting at bit f
+
+This operation counts bits from 0 to 31. If not provided, the field width defaults to one bit
+
+#+BEGIN_SRC lua
+  function printx (x)
+     print(string.format("0x%X", x))
+  end
+  
+  printx(bit32.extract(0xABCDEF01, 4, 8)) -- 0xF0
+  printx(bit32.extract(0xABCDEF01, 20, 12)) -- 0xABC
+  printx(bit32.extract(0xABCDEF01, 0, 12))  -- 0xF01
+  printx(bit32.extract(0x8, 3))             -- 0x1
+#+END_SRC
+
+The reverse of extract is replace, which replaces a bit field into a number
+
+#+BEGIN_SRC lua
+  printx(bit32.replace(0xABCDEF01, 0x55, 4, 8)) -- 0xABCDE551
+  printx(bit32.replace(0xABCDEF01, 0x0, 4, 8))  -- 0xABCDE001
+#+END_SRC
+
+* the table library
+
+** insert and remove
+
+try *t[#t + 1] = line* to append elements to a list
+
+#+BEGIN_SRC lua
+  t = {}
+  
+  for i=7,11 do
+     t[#t+1] = i
+  end
+  
+  print(table.remove(t))          -- 11
+  print(table.remove(t,1))        -- 7
+  print(#t)                       -- 3
+  
+  table.insert(t,2,99)
+  
+  for k,v in pairs(t) do
+     print(k,v)
+  end
+  -- 1    8
+  -- 2    99
+  -- 3    9
+  -- 4    10
+#+END_SRC
+
+** sort
+
+#+BEGIN_SRC lua
+  lines = {
+     luaH_present = 48,
+     luaH_set = 10,
+     luaH_get = 24,
+  }
+  
+  a = {}
+  for n in pairs(lines) do a[#a + 1] = n end
+  table.sort(a)
+  for _, n in ipairs(a) do print(n) end
+  
+  function pairsByKeys (t, f)
+     local a = {}
+     for n in pairs(t) do a[#a + 1] = n end
+     table.sort(a, f)
+  
+     local i = 0                  -- iterator variable
+     return function ()           -- iterator function
+        i = i+1
+        return a[i],t[a[i]]
+     end
+  end
+  
+  for name, line in pairsByKeys(lines) do
+     print(name, line)
+  end
+#+END_SRC
+
+** concatenation
+
+#+BEGIN_SRC lua
+  function rconcat (l, sep)
+     if type(l) ~= "table" then return l end
+     local res = {}
+     for i = 1, #l do
+        res[i] = rconcat(l[i], sep)
+     end
+     return table.concat(res, sep)
+  end
+  
+  print(rconcat{{"a", {" nice"}}, " and", {{" long"}, {" list"}}})
+  print(rconcat({{"a", {" nice"}}, " and", {{" long"}, {" list"}}},' - '))
+#+END_SRC
+
+* the string library
+
+** basic string functions
+
+The call string.sub(s, i, j) extracts a piece of the string s, from the i-th to the j-th character inclusive. 
+
+In Lua, *the first character of a string has index 1* (what can i say?...)
+
+the index 1 refers to the last character in a string, 2 to the previous one, and so on
+
+#+BEGIN_SRC lua
+  s = "[in brackets]"
+  print(s:sub(2, -2))             -- in brackets
+#+END_SRC
+
+#+BEGIN_SRC lua
+  print(string.char(97))          -- a
+  print(string.byte("abc", 2))    -- 98
+#+END_SRC
+
+** pattern-matching functions
+
+*** The string.find function
+
+#+BEGIN_SRC lua
+  s = "hello world"
+  s_start, s_end = string.find(s, "llo")
+  print(s_start,s_end)            -- 3 5
+#+END_SRC
+
+*** The string.match function
+
+#+BEGIN_SRC lua
+  date = "Today is 17/7/1990"
+  d = string.match(date, "%d+/%d+/%d+")
+  print(d)                        -- 17/7/1990
+#+END_SRC
+
+*** The string.gsub function
+
+The string.gsub function has three mandatory parameters: a subject string, a pattern, and a replacement string
+
+An optional fourth parameter limits the number of substitutions to be made
+
+#+BEGIN_SRC lua
+  s = string.gsub("lili lucy", "l", "x")
+  print(s)                        -- xixi xucy
+  print(string.gsub("lili lucy", "l", "x", 2)) -- xixi lucy   2
+  
+#+END_SRC
+
+*** The string.gmatch function
+
+The string.gmatch function returns a function that iterates over all occurrences of a pattern in a string
+
+#+BEGIN_SRC lua
+  date = "Today is 17/7/1990, tomorrow is 18/7/1990, the day after tomorrow is 19/7/1990,"
+  d = string.gmatch(date, "[%a%s]* is %d+/%d+/%d+")
+  
+  for x in d do
+     print(x)
+  end
+#+END_SRC
+
+** patterns
+
+all character classes
+
+#+BEGIN_SRC lua
+ .    all characters
+%a    letters
+%c    control characters
+%d    digits
+%g    printable characters except spaces
+%l    lower-case letters
+%p    punctuation characters
+%s    space characters
+%u    upper-case letters
+%w    alphanumeric characters
+%x    hexadecimal digits
+#+END_SRC
+
+Patterns in Lua offer four modifiers
+
+#+BEGIN_SRC lua
+\+    1 or more repetitions
+\*    0 or more repetitions
+-    0 or more lazy repetitions
+?    optional (0 or 1 occurrence)
+#+END_SRC
+
+** captures
+
+The *capture* mechanism allows a pattern to yank parts of the subject string that match parts of the pattern for further use
+
+#+BEGIN_SRC lua
+  pair = "name = Anna"
+  key, value = string.match(pair, "(%a+)%s*=%s*(%a+)")
+  print(key, value) --> name Anna
+#+END_SRC
+
+#+BEGIN_SRC lua
+  s = [[then he said: "it's all right"!]]
+  q, quotedPart = string.match(s, "([\"])(.-)%1")
+  print(quotedPart) --> it's all right
+  print(q)
+#+END_SRC
+
+the item "%0" is changed to the whole match
+
+** replacements
+
+Instead of a string, we can use either a function or a table as the third argument to string.gsub
+
+#+BEGIN_SRC lua
+name = "Lua"
+status = "great"
+
+function expand (s)
+   return (string.gsub(s, "$(%w+)", {name="hello",status="world"}))
+end
+
+print(expand("$name is $status, isn't it?"))
+#+END_SRC
+
+** URL Encoding
+
+#+BEGIN_SRC lua
+  function escape (s)
+     s = string.gsub(s, "[&=+%%%c]", function (c)
+                        return string.format("%%%02X", string.byte(c))
+     end)
+     s = string.gsub(s, " ", "+")
+     return s
+  end
+  
+  print(escape("query = a+b = c"))
+  
+  function unescape (s)
+     s = string.gsub(s, "+", " ")
+     s = string.gsub(s, "%%(%x%x)", function (h)
+                        return string.char(tonumber(h, 16))
+     end)
+     return s
+  end
+  
+  print(unescape("query+%3D+a%2Bb+%3D+c"))
+#+END_SRC
+
+** tab expansion
+
+*()* captures its position in the subject string, as a number
+
+#+BEGIN_SRC lua
+  print(string.match("hello", "()lo()")) -- 4 6
+#+END_SRC
+
+* the i/o library
+
+** the simple i/o model
+
++ Unlike print, write adds no extra characters to the output, such as tabs or newlines
+
++ write allows you to redirect your output, whereas print always uses the standard output
+
++ print automatically applies tostring to its arguments; this is handy for debugging, but it can hide bugs if you are not paying attention to your output
+
+The io.read function reads strings from the current input file. Its arguments control what to read
+
+#+BEGIN_SRC lua
+  "*a"    reads the whole file                    
+  "*l"    reads the next line (without newline)   
+  "*L"    reads the next line (with newline)      
+  "*n"    reads a number                          
+  num     reads a string with up to num characters
+#+END_SRC
+
+** the complete i/o model
+
+#+BEGIN_SRC lua
+  local f = assert(io.open("demo.lua", "r"))
+  local t = f:read("*a")
+  f:close()
+  print(t)                        -- self-printing
+#+END_SRC
+
+The I/O library offers handles for the three predefined C streams: io.stdin,io.stdout, and io.stderr
+
+#+BEGIN_SRC lua
+  io.stderr:write("hello")
+#+END_SRC
+
+if you want to change the current input file temporarily
+
+also self-printing
+
+#+BEGIN_SRC lua
+  local temp = io.input()         -- save current file
+  io.input("demo.lua")            -- open 'demo.lua' as new current file
+  print(io.read("*a"))
+  io.input():close()
+  io.input(temp)
+#+END_SRC
+
+*** a small performance trick
+
+If you want to handle big files with maximum performance, the fastest way is to read them in reasonably large chunks (e.g., 8 kB each)
+
+To avoid the problem of breaking lines in the middle, you simply ask to read a chunk plus a line:
+
+#+BEGIN_SRC lua
+  local lines, rest = f:read(BUFSIZE, "*l")
+#+END_SRC
+
+The variable rest will get the rest of any line broken by the chunk
+
+*** binary files
+
+The simple-model functions io.input and io.output always open a file *in text mode* (the default)
+
+#+BEGIN_SRC lua
+  -- dos to unix
+  local fin = assert(io.open(arg[1], "rb"))
+  local fout = assert(io.open(arg[2], "wb"))
+  
+  local data = fin:read("*a")
+  data = string.gsub(data, "\r\n", "\n")
+  fout:write(data)
+  
+  fout:close()
+  fin:close()
+#+END_SRC
+
+** other operations on files
+
+The tmpfile function returns a handle for a temporary file, open in read/write mode
+
+io.flush() to flush the current output file; as a method, f:flush(), to flush a particular file f
+
+The setvbuf method sets the buffering mode of a stream,first argument is a string("no","line","full").For the last two options, setvbuf accepts an optional second argument with the buffer size
+
+The seek method can both get and set the current position of a file. Its general form is f:seek(whence,offset) -- whence can be "set","cur" or "end"
+
+#+BEGIN_SRC lua
+  function fileSize (fp)
+     local old = fp:seek()    -- get current position
+     local size = fp:seek("end") -- get file size
+     fp:seek("set", old)         -- restore
+     return size
+  end
+  
+  f = io.open("demo.lua","r")
+  print(fileSize(f))
+  f:close()
+#+END_SRC
+
+* the operating system library
+
+** date and time
+
+date tables have the following significant fields
+
+#+BEGIN_SRC lua
+  year    a full year                             
+  mont    01–12                                   h
+  day     01–31                                   
+  hour    00–23                                   
+  min     00–59                                   
+  sec     00–59                                   
+  isdst   a boolean, true if daylight saving is on
+#+END_SRC
+
+calculate unix time stamp
+
+#+BEGIN_SRC lua
+print(os.time{year=1997, month=1, day=1, hour=0})
+#+END_SRC
+
+For numeric values, the table shows also their range of possible values
+
+#+BEGIN_SRC lua
+  %a    abbreviated weekday name (e.g., Wed)     
+  %A    full weekday name (e.g., Wednesday)      
+  %b    abbreviated month name (e.g., Sep)       
+  %B    full month name (e.g., September)        
+  %c    date and time (e.g., 09/16/98 23:48:10)  
+  %d    day of the month (16) [01–31]            
+  %H    hour, using a 24-hour clock (23) [00–23] 
+  %I    hour, using a 12-hour clock (11) [01–12] 
+  %j    day of the year (259) [001–366]          
+  %M    minute (48) [00–59]                      
+  %m    month (09) [01–12]                       
+  %p    either "am" or "pm" (pm)             
+  %S    second (10) [00–60]                      
+  %w    weekday (3) [0–6 = Sunday–Saturday]      
+  %x    date (e.g., 09/16/98)                    
+  %X    time (e.g., 23:48:10)                    
+  %y    two-digit year (98) [00–99]              
+  %Y    full year (1998)                         
+  %%    the character '%'
+#+END_SRC
+
+#+BEGIN_SRC lua
+  print(os.date("a %A in %B"))    -- a Wednesday in November
+#+END_SRC
+
+** other system calls
+
+#+BEGIN_SRC lua
+  print(os.getenv("HOME"))        -- /home/san
+  print(os.execute("ls -ld ~"))   -- drwxr-xr-x 159 san san 16384 11月 26 14:57 /home/san
+  -- true exit    0
+#+END_SRC
+
+* the debug library
+
+** Introspective Facilities
+
+The main introspective function in the debug library is the debug.getinfo function. Its first parameter can be a function or a stack level
+
+When you call debug.getinfo(foo) for some function foo, you get a table with some data about this function
+
++ source
+
+	where the function was defined
+
++ short\_src
+
+	a short version of source (up to 60 characters)
+
++ linedefined
+
+	number of the first line of the source where the function wasdefined
+
++ lastlinedefined
+
+	number of the last line of the source where the function was defined
+
++ what
+
+	what this function is. "C" if it is a C function, or "main" if it is the main part of a Lua chunk.
+
++ name
+
+	a reasonable name for the function
+
++ namewhat
+
+	what the previous field means. This field can be "global", "local","method", "field", or "" (the empty string). The empty string means that Lua did not find a name for the function
+
++ nups
+
+    number of upvalues of that function
+
++ activelines
+
+	a table representing the set of active lines of the function
+
++ func
+
+	the function itself; see later
+
+To achieve better performance, getinfo has an optional second parameter that selects what information to get
+
+#+BEGIN_SRC lua
+  'n'    selects name and namewhat
+  'f'    selects func
+  'S'    selects source, short_src, what, linedefined, and lastlinedefined
+  'l'    selects currentline
+  'L'    selects activelines
+  'u'    selects nup
+#+END_SRC
+
+*** Accessing local variables
+
+We can inspect the local variables of any active function with debug.getlocal
+
+This function has two parameters: *the stack level* and a *variable index*
+
+#+BEGIN_SRC lua
+  function foo (a, b)
+     local x
+     do local c = a - b end
+     local a = 1
+     while true do
+        local name, value = debug.getlocal(1, a)
+        if not name then break end
+        print(name, value)
+        a = a + 1
+     end
+  end
+  
+  foo(10,20)
+#+END_SRC
+
+You can also change the values of local variables, with debug.setlocal. Its first two parameters are a stack level and a variable index, like in getlocal
+
+Its third parameter is the new value for this variable. It returns the variable name or nil if the variable index is out of scope
+
+** hooks
+The hook mechanism of the debug library allows us to register a function to be called at specific events as a program runs
+
+There are four kinds of events that can trigger a hook:
+
++ call events happen every time Lua calls a function;
++ return events happen every time a function returns;
++ line events happen when Lua starts executing a new line of code;
++ count events happen after a given number of instructions.
+
+debug.sethook with two or three arguments: 
+
+the first argument is the hook function
+
+the second argument is a mask string('c'-'call', 'r'-'run', 'l'-'line')
+
+and the optional third argument is a number that describes at what frequency we want to get count events
+
+#+BEGIN_SRC lua
+  function foo (a)
+     local x = a * 2
+     print(x)
+  end
+  
+  debug.sethook(print,"l")
+  foo(10)
+#+END_SRC
+
+* An Overview of the C API
+
+** a first example
+
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <string.h>
+  #include <lua.h>
+  #include <lauxlib.h>
+  #include <lualib.h>
+  
+  /* build with : -llua -lm -ldl */
+  int main(void)
+  {
+      char buff[256];
+      int error;
+  
+      lua_State *L = luaL_newstate(); /* opens Lua */
+      luaL_openlibs(L);   /* opens the standard libraries */
+  
+      while (fgets(buff, sizeof(buff), stdin) != NULL) {
+          error = luaL_loadstring(L, buff) || lua_pcall(L, 0, 0, 0);
+          if (error) {
+              fprintf(stderr, "%s\n", lua_tostring(L, -1));
+              lua_pop(L, 1);  /* pop error message from the stack */
+          }
+      }
+  
+      lua_close(L);
+      return 0;
+  }
+#+END_SRC
+
+** the stack
+
+*** pushing elements
+
+#+BEGIN_SRC c
+  void lua_pushnil(lua_State * L);
+  void lua_pushboolean(lua_State * L, int bool);
+  void lua_pushnumber(lua_State * L, lua_Number n);  /* for doubles */
+  void lua_pushinteger(lua_State * L, lua_Integer n);  /* for integers */
+  void lua_pushunsigned(lua_State * L, lua_Unsigned n);  /* for unsigned integers */
+  void lua_pushlstring(lua_State * L, const char *s, size_t len);
+  void lua_pushstring(lua_State * L, const char *s);
+#+END_SRC
+
+lua_checkstack checks whether the stack has enough space for your needs:
+
+#+BEGIN_SRC c
+  int lua_checkstack(lua_State * L, int sz);
+#+END_SRC
+
+*** Querying elements
+
+To check whether an element has a specific type, the API offers a family of functions lua\_is*, where the * can be any Lua type. 
+
+So, there are lua\_isnumber,lua\_isstring, lua\_istable, and the like. All these functions have the same prototype:
+
+#+BEGIN_SRC c
+  int lua_is* (lua_State * L, int index);
+#+END_SRC
+
+There is also a function lua_type, which returns the type of an element in the stack. Each type is represented by a constant defined in the header file lua.h:
+
+LUA_TNIL, LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, LUA_TTABLE, LUA_TTHREAD, LUA_TUSERDATA, and LUA_TFUNCTION
+
+To get a value from the stack, there are the lua\_to* functions:
+
+#+BEGIN_SRC c
+  int lua_toboolean(lua_State * L, int index);
+  const char *lua_tolstring(lua_State * L, int index, size_t * len);
+  lua_Number lua_tonumber(lua_State * L, int index);
+  lua_Integer lua_tointeger(lua_State * L, int index);
+  lua_Unsigned lua_tounsigned(lua_State * L, int idx);
+#+END_SRC
+
+*** other stack operations
+
+operations for generic stack manipulation:
+
+#+BEGIN_SRC c
+  int lua_gettop(lua_State * L);
+  void lua_settop(lua_State * L, int index);
+  void lua_pushvalue(lua_State * L, int index);
+  void lua_remove(lua_State * L, int index);
+  void lua_insert(lua_State * L, int index);
+  void lua_replace(lua_State * L, int index);
+  void lua_copy(lua_State * L, int fromidx, int toidx);
+#+END_SRC
+
