@@ -2247,6 +2247,22 @@ and the optional third argument is a number that describes at what frequency we 
 
 ** a first example
 
+*** lua.h
+
+*lua.h* defines the basic functions provided by Lua
+
+It includes functions to create a new Lua environment, to invoke Lua functions (such as lua_pcall), to read and write global variables in the
+
+Lua environment, to register new functions to be called by Lua, and so on. Everything defined in lua.h has a lua_ prefix
+
+*** lauxlib.h
+
+*lauxlib.h* defines the functions provided by the auxiliary library (auxlib). All its definitions start with luaL_ (e.g., luaL_loadstring).
+
+The auxiliary library uses the basic API provided by lua.h to provide a higher abstraction level, in particular with abstractions used by the standard libraries
+
+It does its *entire job through the official basic API*
+
 #+BEGIN_SRC c
   #include <stdio.h>
   #include <string.h>
@@ -2264,7 +2280,8 @@ and the optional third argument is a number that describes at what frequency we 
       luaL_openlibs(L);   /* opens the standard libraries */
   
       while (fgets(buff, sizeof(buff), stdin) != NULL) {
-          error = luaL_loadstring(L, buff) || lua_pcall(L, 0, 0, 0);
+          /* error = luaL_loadstring(L, buff) || lua_pcall(L, 0, 0, 0); */
+          error = luaL_dostring(L, buff);
           if (error) {
               fprintf(stderr, "%s\n", lua_tostring(L, -1));
               lua_pop(L, 1);  /* pop error message from the stack */
@@ -2278,7 +2295,17 @@ and the optional third argument is a number that describes at what frequency we 
 
 ** the stack
 
+Whenever you want to ask for a value from Lua (such as the value of a global variable), you call Lua, which pushes the required value on the stack
+
+Whenever you want to pass a value to Lua, you first push the value on the stack, and then you call Lua (which will pop the value)
+
+Lua manipulates this stack in a strict LIFO discipline (Last In, First Out)
+
 *** pushing elements
+
+Strings in Lua are not zero-terminated; they can contain arbitrary binary data. In consequence, they must rely on an explicit length
+
+For zero-terminated strings, can use lua_pushstring(*strlen* to supply the string length)
 
 #+BEGIN_SRC c
   void lua_pushnil(lua_State * L);
@@ -2298,6 +2325,20 @@ lua_checkstack checks whether the stack has enough space for your needs:
 
 *** Querying elements
 
+To refer to elements in the stack, the API uses indices. The first element pushed on the stack has index 1, the next one has index 2, and so on until the top.
+
+We can also access elements using the top of the stack as our reference, using negative indices. In this case, 1 refers to the element at the top (that is, the last element pushed), 2 to the previous element, and so on
+
+#+BEGIN_SRC lua
+             ----- push new element
+     []  <--|
+  -1 ---> top
+  -2 ---> top - 1
+      .... 
+  -n ---> 2
+-n-1 ---> 1
+#+END_SRC
+
 To check whether an element has a specific type, the API offers a family of functions lua\_is*, where the * can be any Lua type. 
 
 So, there are lua\_isnumber,lua\_isstring, lua\_istable, and the like. All these functions have the same prototype:
@@ -2306,9 +2347,9 @@ So, there are lua\_isnumber,lua\_isstring, lua\_istable, and the like. All these
   int lua_is* (lua_State * L, int index);
 #+END_SRC
 
-There is also a function lua_type, which returns the type of an element in the stack. Each type is represented by a constant defined in the header file lua.h:
+There is a function *lua\_type*, which returns the type of an element in the stack. Each type is represented by a constant defined in the header file lua.h:
 
-LUA_TNIL, LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, LUA_TTABLE, LUA_TTHREAD, LUA_TUSERDATA, and LUA_TFUNCTION
+LUA\_TNIL, LUA\_TBOOLEAN, LUA\_TNUMBER, LUA\_TSTRING, LUA\_TTABLE, LUA\_TTHREAD, LUA\_TUSERDATA, and LUA\_TFUNCTION
 
 To get a value from the stack, there are the lua\_to* functions:
 
@@ -2334,3 +2375,320 @@ operations for generic stack manipulation:
   void lua_copy(lua_State * L, int fromidx, int toidx);
 #+END_SRC
 
+lua_gettop returns the number of elements in the stack, which is also the index of the top element
+
+lua_settop sets the top (that is, the number of elements in the stack) to a specific value
+
+If the previous top was higher than the new one, the function discards the extra top values
+
+You can also use negative indices with lua_settop
+
+#+BEGIN_SRC c
+  #define lua_pop(L,n) lua_settop(L, -(n) - 1)
+#+END_SRC
+
+* extending your application
+
+Lua is as a *configuration* language
+
+** the basics
+
+#+BEGIN_SRC lua
+  width = 640
+  height = 480
+#+END_SRC
+
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <string.h>
+  #include <lua.h>
+  #include <lauxlib.h>
+  #include <lualib.h>
+  
+  int load_cfg(lua_State * L, const char *path, int *w, int *h)
+  {
+      if (luaL_dofile(L, path))
+          error(L, "can not run cfg file:%s\n", lua_tostring(L, -1));
+  
+      lua_getglobal(L, "width");  /* push width */
+      lua_getglobal(L, "height"); /* push height */
+  
+      if (!lua_isnumber(L, -2))   /* here, 1 -- width */
+          error(L, "'width' should be a number\n");   /* here, 2 -- height */
+      if (!lua_isnumber(L, -1))
+          error(L, "'height' should be a number\n");
+  
+      ,*w = lua_tointeger(L, -2);
+      ,*h = lua_tointeger(L, -1);
+  
+      return 0;
+  }
+  
+  /* build with : -llua -lm -ldl */
+  int main(void)
+  {
+      char buff[256];
+      int width, height;
+      const char *path = "demo.lua";
+  
+      lua_State *L = luaL_newstate(); /* opens Lua */
+      luaL_openlibs(L);   /* opens the standard libraries */
+  
+      load_cfg(L, path, &width, &height);
+      printf("width:%d,height:%d\n", width, height);
+  
+      lua_close(L);
+      return 0;
+  }
+  
+#+END_SRC
+
+** table manipulation
+
+The Lua API offers one function, lua_gettable, that works for all types
+
+It takes the position of the table in the stack, pops the key from the stack, and pushes the corresponding value
+
+#+BEGIN_SRC lua
+  background = {red = 0, green = 0, blue = 255}
+#+END_SRC
+
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <string.h>
+  #include <lua.h>
+  #include <lauxlib.h>
+  #include <lualib.h>
+  
+  int getcolorfield(lua_State * L, const char *key)
+  {
+      int result;
+  
+      lua_pushstring(L, key); /* push key */
+      lua_gettable(L, -2);    /* get background[key], -2 is the idx of background */
+  
+      /* lua_getfield(L, -1, key); */
+  
+      if (!lua_isnumber(L, -1))
+          error(L, "invalid component in background color");
+  
+      result = (int)(lua_tonumber(L, -1));
+      lua_pop(L, 1);      /* remove number */
+  
+      return result;
+  }
+  
+  int load_lua_file(lua_State * L, const char *path, int *r, int *g, int *b)
+  {
+      if (luaL_dofile(L, path))
+          error(L, "can not load lua file:%s\n", lua_tostring(L, -1));
+  
+      lua_getglobal(L, "background");
+      if (!lua_istable(L, -1))
+          error(L, "'background' is not a table");
+  
+      *r = getcolorfield(L, "red");
+      *g = getcolorfield(L, "green");
+      *b = getcolorfield(L, "blue");
+  
+      return 0;
+  }
+  
+  /* build with : -llua -lm -ldl */
+  int main(void)
+  {
+      char buff[256];
+      int r, g, b;
+      const char *path = "demo.lua";
+  
+      lua_State *L = luaL_newstate(); /* opens Lua */
+      luaL_openlibs(L);   /* opens the standard libraries */
+  
+      load_lua_file(L, path, &r, &g, &b);
+      printf("red:%d,green:%d,blue:%d\n", r, g, b);
+  
+      lua_close(L);
+      return 0;
+  }
+#+END_SRC
+
+#+BEGIN_SRC c
+      /* setcolorfield(L, "red", 128); */
+  int setcolorfield(lua_State * L, const char *key, int val)
+  {
+      lua_pushstring(L, key); /* idx -> -1 */
+      lua_pushinteger(L, val);    /* idx -> -2 */
+      lua_settable(L, -3);    /* idx -> -3 */
+  }
+#+END_SRC
+
+** calling lua functions
+
+#+BEGIN_SRC lua
+  function foo (x, y)
+     return (x^2 * math.sin(y)) / (1 - x)
+  end
+#+END_SRC
+
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <string.h>
+  #include <lua.h>
+  #include <lauxlib.h>
+  #include <lualib.h>
+  
+  double func_from_lua(lua_State * L, double x, double y)
+  {
+      int is_num;
+      double z;
+  
+  /* push functions and arguments */
+      lua_getglobal(L, "foo");    /* function to be called */
+      lua_pushnumber(L, x);   /* push 1st argument */
+      lua_pushnumber(L, y);   /* push 2nd argument */
+  
+  /* do the call (2 arguments, 1 result) */
+      if (lua_pcall(L, 2, 1, 0) != LUA_OK)
+          error(L, "error running function 'foo': %s",
+                lua_tostring(L, -1));
+  
+  /* retrieve result */
+  /* if there are three results, the first one will be at index 3 and the last at index 1 */
+      z = lua_tonumberx(L, -1, &is_num);
+      if (!is_num)
+          error(L, "function 'foo' must return a number");
+  
+      lua_pop(L, 1);      /* pop returned value */
+      return z;
+  }
+  
+  /* build with : -llua -lm -ldl */
+  int main(void)
+  {
+      const char *path = "demo.lua";
+      double x = 3, y = 3.14159265 / 2;
+  
+      lua_State *L = luaL_newstate(); /* opens Lua */
+      luaL_openlibs(L);   /* opens the standard libraries */
+  
+      luaL_dofile(L, path);
+      printf("%f\n", func_from_lua(L, x, y));
+  
+      lua_close(L);
+      return 0;
+  }
+#+END_SRC
+
+** a generic call function
+
+#+BEGIN_SRC lua
+  function foo (x, y)
+     return (x^2 * math.sin(y)) / (1 - x)
+  end
+#+END_SRC
+
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <string.h>
+  #include <lua.h>
+  #include <lauxlib.h>
+  #include <lualib.h>
+  #include <stdarg.h>
+  
+  int push_args(lua_State * L, const char *sig, va_list * vl)
+  {
+      int cnt;        /* num of arguments */
+  
+      for (cnt = 0; sig[cnt]; cnt++) {
+          /* check stack space */
+          luaL_checkstack(L, 1, "too many arguments");
+  
+          switch (sig[cnt]) {
+          case 'd':   /* double argument */
+              lua_pushnumber(L, va_arg(*vl, double));
+              break;
+          case 'i':   /* int argument */
+              lua_pushinteger(L, va_arg(*vl, int));
+              break;
+          case 's':   /* string argument */
+              lua_pushstring(L, va_arg(*vl, char *));
+              break;
+          case '>':   /* end of arguments */
+              return cnt;
+          default:
+              luaL_error(L, "invalid option (%c)", sig[cnt]);
+          }
+      }
+  }
+  
+  void retrive_results(lua_State * L, const char *sig, va_list * vl, int nres)
+  {
+      while (*sig) {      /* repeat for each result */
+          switch (*sig++) {
+          case 'd':{  /* double result */
+                  int isnum;
+                  double n = lua_tonumberx(L, nres, &isnum);
+                  if (!isnum)
+                      luaL_error(L, "wrong result type");
+                  ,*va_arg(*vl, double *) = n;
+                  break;
+              }
+          case 'i':{  /* int result */
+                  int isnum;
+                  int n = lua_tointegerx(L, nres, &isnum);
+                  if (!isnum)
+                      luaL_error(L, "wrong result type");
+                  ,*va_arg(*vl, int *) = n;
+                  break;
+              }
+          case 's':{  /* string result */
+                  const char *s = lua_tostring(L, nres);
+                  if (s == NULL)
+                      luaL_error(L, "wrong result type");
+                  ,*va_arg(*vl, const char **) = s;
+                  break;
+              }
+          default:
+              luaL_error(L, "invalid option (%c)", *sig);
+          }
+          nres++;
+      }
+  }
+  
+  void generic_call_lua(lua_State * L, const char *func, const char *sig, ...)
+  {
+      va_list vl;
+      int narg, nres;     /* num of arguments and results */
+  
+      lua_getglobal(L, func);
+  
+      va_start(vl, sig);
+      narg = push_args(L, sig, &vl);
+  
+      nres = strlen(sig) - (narg + 1);    /* number of expected results, remember '>' */
+      if (lua_pcall(L, narg, nres, 0) != 0)   /* do the call */
+          luaL_error(L, "error calling '%s': %s", func,
+                 lua_tostring(L, -1));
+  
+      nres = -nres;
+      retrive_results(L, sig + narg + 1, &vl, nres);
+      va_end(vl);
+  }
+  
+  /* build with : -llua -lm -ldl */
+  int main(void)
+  {
+      double x = 3, y = 3.14159265 / 2, z;
+      const char *path = "demo.lua";
+  
+      lua_State *L = luaL_newstate(); /* opens Lua */
+      luaL_openlibs(L);   /* opens the standard libraries */
+  
+      luaL_dofile(L, path);
+      generic_call_lua(L, "foo", "ddf>d", x, y, &z);
+      printf("%f\n", z);
+  
+      lua_close(L);
+      return 0;
+  }
+#+END_SRC
