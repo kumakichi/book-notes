@@ -1,0 +1,324 @@
+#+TITLE: sqlite the definitive guide
+#+AUTHOR: kumakichi
+
+* basics
+
+CLP : Command Line Program
+
+sql 不区分大小写，无论是关键字还是标识符
+
+** 基本操作
+
+#+BEGIN_SRC sql
+  create [temp|temporary] table_name(column_definitions [, constraints]); -- temp或者temporary表示表是临时的，回话结束后自动销毁
+#+END_SRC
+
+#+BEGIN_SRC sql
+  create table test (id integer primary key, value text);
+  insert into test (id, value) values(1, 'sanye');
+  insert into test (id, value) values(2, 'sans');
+  insert into test (value) values('kumakichi');
+  insert into test (value) values('pcwl');
+  .mode column 
+  .header on
+  select * from test;
+#+END_SRC
+--->
+#+BEGIN_SRC quote
+  id          value     
+  ----------  ----------
+  1           sanye     
+  2           sans      
+  3           kumakichi 
+  4           pcwl   
+#+END_SRC
+
+#+BEGIN_SRC sql
+  sqlite> select last_insert_rowid();
+  last_insert_rowid()
+  -------------------
+  4                  
+  sqlite> create index test_idx on test (value);
+  sqlite> create view schema as select * from sqlite_master;
+  sqlite> .exit
+#+END_SRC
+
+** 文件
+
+*** to file
+
+#+BEGIN_SRC sql  
+  .output 1.sql           --重定向到文件
+  .dump
+  .output stdout          --恢复
+#+END_SRC  
+
+格式控制
+
+#+BEGIN_SRC sql
+  .output demo.csv
+  .separator ,
+  .mode csv
+  select * from test;
+  .output stdout
+#+END_SRC
+
+*** from file
+
+#+BEGIN_SRC sql  
+  drop table test;
+  drop view schema;
+  .read 1.sql             --从文件读取
+#+END_SRC
+
+** 修改提示符
+
+#+BEGIN_SRC sql
+  .prompt 'sans-sqlite3> '
+#+END_SRC
+
+** 一些配置
+#+BEGIN_SRC sql    
+  .echo on
+  .mode column
+  .header on
+  .nullvalue NULL                 --将nulls打印成NULL
+#+END_SRC
+
+** 类型
+
+5种类型: integer, real, text, blob, null
+
+** 修改table
+#+BEGIN_SRC sql
+  alert table table_name {rename to name | add column column def}
+#+END_SRC
+
+* select
+
+#+BEGIN_SRC sql
+  select [distinct] heading
+  from tables
+  where predicate
+  group by columns
+  having predicate
+  order by columns
+  limit count, offset;
+#+END_SRC
+
+** 查询匹配 
+
+*** like
+
+#+BEGIN_SRC sql
+  select * from train where id like '510722%';
+#+END_SRC
+
+百分号(%)匹配任意0个或多个字符; 下划线(_)匹配任意单个字符
+
+*** glob
+
+glob和like类似，不过显得更加友好(通配符):
+
+#+BEGIN_SRC sql
+  select * from train where id glob '510722*';
+#+END_SRC
+
+#+BEGIN_SRC sql
+  select * from train where id glob '510722*' order by id limit 2 offset 3; -- 选出第4,5两个
+#+END_SRC
+
+#+BEGIN_SRC sql
+  select id,name,email,password from train where length(password) <=5;
+#+END_SRC
+
+#+BEGIN_SRC sql
+  select count(*) from train where id glob '510722*';
+#+END_SRC
+
+** group by
+
+#+BEGIN_SRC sql
+  select length(password), count(*) from train group by length(password); --分析密码长度
+#+END_SRC
+
+#+BEGIN_SRC sql
+  select count(*) from train where password == '123456'; -- 看看有多少人是这样的密码
+#+END_SRC
+
+* 高级
+
+#+BEGIN_SRC sql
+  insert into table_name (column_list) values (value_list);
+#+END_SRC
+
+#+BEGIN_SRC sql
+  insert into foods2 select * from foods; --这样插入
+  
+  create table foods2 as select * from foods; -- 一步创建和插入
+#+END_SRC
+
+** update
+
+#+BEGIN_SRC sql
+  update train set name="sans" where name="sanye";
+  detele from train where id = 8;
+#+END_SRC
+
+删除列(需要新建表)
+
+#+BEGIN_SRC sql
+  create table xxoo as select email,password,name,id,nickname,phone from train;
+  .schema xxoo
+  CREATE TABLE xxoo(
+    email TEXT,
+    password TEXT,
+    name TEXT,
+    id TEXT,
+    nickname TEXT,
+    phone INT
+  );
+  drop table if exists train;
+  alter table xxoo rename to train;
+  .tables
+  train
+  
+#+END_SRC
+
+** not null, default
+
+#+BEGIN_SRC sql
+  create table t(id integer primary key, date not null default current_date, ts not null default current_timestamp);
+  insert into t(id) values (1);
+  select * from t;
+  1|2014-12-30|2014-12-30 06:04:27
+#+END_SRC
+
+** 同一字段，不同类型
+
+#+BEGIN_SRC sql
+  create table t(x);
+  insert into t values('3.4');
+  insert into t values(3.4);
+  insert into t values(34);
+  insert into t values(x'3442');
+  insert into t values(null);
+  .mode column
+  .header on
+  select rowid,x,typeof(x) from t;
+  rowid       x           typeof(x) 
+  ----------  ----------  ----------
+  1           3.4         text      
+  2           3.4         real      
+  3           34          integer   
+  4           4B          blob      
+  5                       null      
+#+END_SRC
+
+** view
+
+create view view-name as select-statements;
+
+视图主要是为了减轻每次输入的麻烦，举个例子:
+
+#+BEGIN_SRC sql
+  create view tv as select rowid as id,x as val, typeof(x) as type from t;
+  .tables
+  t   tv
+  sqlite> select id,type from tv;
+  id          type      
+  ----------  ----------
+  1           text      
+  2           real      
+  3           integer   
+  4           blob      
+  5           null    
+  
+  drop view tv;
+#+END_SRC
+
+这里我们就可以用自定义的名字(id,type等)检索表t了，而不用typeof()这样的玩意儿
+
+另外一个例子
+
+#+BEGIN_SRC sql
+  .schema train 
+  CREATE TABLE "train"(
+    email TEXT,
+    password TEXT,
+    name TEXT,
+    id TEXT,
+    nickname TEXT,
+    phone INT
+  );
+  create view tv as select t.email e,t.password p,t.id i from train t;
+  select i,e,p from tv where length(p) > 15;
+  513023198007217135|daibing722@163.com|q1w2e3r4t5y6u7i8
+  
+#+END_SRC
+
+** 索引
+
+索引会加速查询，但是会影响update，insert,delete操作的速度,因为这些时候索引需要修改
+
+#+BEGIN_SRC sql
+  create [unique] index index_name on table_name(columns)
+#+END_SRC
+
+#+BEGIN_SRC sql
+  create unique index it on t(x);
+  select * from t where x=3.4;
+  x         
+  ----------
+  3.4       
+#+END_SRC
+
+#+BEGIN_SRC sql
+  .indices t
+  it
+  .schema t
+  CREATE TABLE t(x);
+  CREATE UNIQUE INDEX it on t(x);
+  drop index it;
+#+END_SRC
+
+** trigger 
+
+发生特定的事件后，触发相应的sql语句
+
+#+BEGIN_SRC sql
+  create [temp|temporary] tigger trigger-name
+  [before|after] [insert|delete|update|update of columns] on table
+  action
+#+END_SRC
+
+** 事务
+
+begin,commit,rollback
+
+** 附加数据库
+
+#+BEGIN_SRC sql
+  attach database '/dev/shm/ex/test.db' as xx;
+  .tables
+  xx.schema  xx.test  
+  select * from xx.test;
+  3|kumakichi
+  4|pcwl
+  2|sans
+  1|sanye
+#+END_SRC
+
+** pragma
+
+#+BEGIN_SRC sql
+  pragma cache_size;
+  2000
+  pragma cache_size = 10000;
+  pragma database_list;
+  0|main|
+  attach database '/dev/shm/ex/test.db' as xx;
+  pragma database_list;
+  0|main|
+  2|xx|/dev/shm/ex/test.db
+#+END_SRC
