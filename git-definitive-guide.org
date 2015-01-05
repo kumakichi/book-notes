@@ -1,0 +1,604 @@
+#+TITLE: git the definitive guide
+#+AUTHOR: kumakichi
+
+* 版本控制前世今生
+
+** patch
+
+#+BEGIN_SRC quote
+hello       world
+====        ====
+15 yuan     25 yuan
+#+END_SRC
+
+#+BEGIN_SRC sh
+  $diff -u hello world 
+  --- hello   2014-12-31 10:04:21.201804723 +0800
+  +++ world   2014-12-31 10:04:27.093804775 +0800
+  @@ -1 +1 @@
+  -15 yuan
+  +25 yuan
+#+END_SRC
+
+#+BEGIN_SRC sh
+  $diff -u hello world > 1.patch
+  $cat 1.patch 
+  --- hello   2014-12-31 10:04:21.201804723 +0800
+  +++ world   2014-12-31 10:04:27.093804775 +0800
+  @@ -1 +1 @@
+  -15 yuan
+  +25 yuan
+  $patch hello 1.patch            # patch original-file patch-file
+  $cat hello 
+  25 yuan
+  $patch -R hello 1.patch         # Recovery
+  $cat hello 
+  15 yuan
+#+END_SRC
+
+** others
+
+cvs, svn, git
+
+* git configs
+
+** autocomplete
+
+#+BEGIN_SRC sh
+  $cp contrib/completion/git-completion.bash ~/.git-completion.bash
+  # edit ~/.bashrc, add one line
+  source ~/.git-completion.bash
+#+END_SRC
+
+** usr, email
+
+#+BEGIN_SRC sh
+  $git config --global user.name "Sans" # global, 家目录
+  $git config --global user.email kumakichi@gmail.com
+#+END_SRC
+
+** alias
+
+#+BEGIN_SRC sh
+  $sudo git config --system alias.st status # system may need 'root'
+  $sudo git config --system alias.ci commit
+  $sudo git config --system alias.co checkout
+  $sudo git config --system alias.br branch
+#+END_SRC
+
+** color
+
+#+BEGIN_SRC sh
+  $git config --global color.ui true
+#+END_SRC
+
+** edit configs
+
+#+BEGIN_SRC sh
+  $git config -e --global
+#+END_SRC
+
+* 暂存
+
+#+BEGIN_SRC sh
+  $git status -s                  # 精简的status
+#+END_SRC
+
+最初是: Changes not staged for commit
+
+** 添加到暂存区
+
+#+BEGIN_SRC sh
+  $git add modified-file
+#+END_SRC
+
+此时: Changes to be committed
+
+*** 再次修改
+
+如果此时再次修改 modified-file,会发现在 not staged 和 to be committed 两处都有，需要再次添加到暂存区
+
+*** 撤销第二次修改
+
+撤销这次修改很简单(to be committed那一部分不会被伤害)
+
+#+BEGIN_SRC sh
+  $git checkout modified-file
+#+END_SRC
+
+*** 撤销第一次修改
+
+#+BEGIN_SRC sh
+  $git reset HEAD modified-file
+#+END_SRC
+
+** 提交
+
+#+BEGIN_SRC sh
+  $git commit -m "xxxx"
+#+END_SRC
+
+查看修改,
+
+#+BEGIN_SRC sh
+  $git diff --cached / --staged   # 看到的是暂存区和版本库的差异
+  $git diff                       # 看到的是暂存区和工作目录的区别
+#+END_SRC
+
+要少用 *commit -a* 指令，这是对暂存区功能的浪费
+
+#+BEGIN_SRC sh
+  $git stash                      # 暂存
+#+END_SRC
+
+* 对象
+
+** 为什么不用数字表示提交
+
+为啥不像svn一样？
+
+git,分布式，若要用数字，提交时候难免与别人冲突，无法做到"全球唯一",而sha1基本可以做到
+
+** 文件追踪head
+
+#+BEGIN_SRC sh
+  $find .git -name HEAD -o -name master
+  .git/logs/HEAD
+  .git/logs/refs/heads/master     # 这里就是完整的提交列表,最下面是最后提交
+  .git/HEAD                       # ref: refs/heads/master
+  .git/refs/heads/master          # 4aa718f58a9d27a12fcf86afa70b0fb3985e562e, HEAD sha1
+#+END_SRC
+
+* 重置
+
+** reset
+
+#+BEGIN_SRC sh
+  $git log --graph --oneline
+  $git reset --hard sha1-xxx-xxx
+#+END_SRC
+
+** reflog
+
+#+BEGIN_SRC sh
+  $git reflog show master         # 感觉像是格式化的.git/logs/refs/heads/master内容, 但是不像直接查看文件(最新的在最后)
+#+END_SRC
+
+输出像: 
+
+#+BEGIN_SRC quote
+4aa718f master@{0}: commit: step2
+335cdd5 master@{1}: commit (initial): x
+#+END_SRC
+
+#+BEGIN_SRC sh
+  $git reset--hard master@{1}
+#+END_SRC
+
+** 深入reset
+
+*** soft
+
+**** 撤出暂存区
+
+相当于 *git add filename* 的反向操作
+
+不会重置引用，更不会改变工作区
+
+#+BEGIN_SRC sh
+  $git reset HEAD filename
+  $git reset --soft HEAD^
+  $git reset -- filename          # 为了避免路径和引用（或者提交ID）同名而发生冲突，可以在＜paths＞前用两个连续的短线（减号）作为分隔
+#+END_SRC
+
+**** amend
+
+#+BEGIN_SRC sh
+  $git commit --amend             # 相当于下面两条指令
+  $git reset --soft HEAD^
+  $git commit -e -F .git/COMMIT_EDITMSG
+#+END_SRC
+
+*** mixed
+
+工作区不改变，但是暂存区会回退到上一次提交之前，引用也会回退一次
+
+#+BEGIN_SRC sh
+  $git reset --mixed HEAD^
+#+END_SRC
+
+*** hard
+
+彻底撤销最近的提交。引用回退到前一次，而且工作区和暂存区都会回退到上一次提交的状态。自上一次以来的提交全部丢失。
+
+#+BEGIN_SRC sh
+  $git reset --hard HEAD^
+#+END_SRC
+
+* checkout 
+
+** HEAD
+
+HEAD指向引用refs/heads/master
+
+执行checkout之后
+
+#+BEGIN_SRC sh
+  $ cat .git/HEAD 
+  ref: refs/heads/master
+  $ git lg
+  ,* a9e09ec - (HEAD, master) 343 (10 seconds ago) <cm_san>
+  ,* 559668c - x (30 seconds ago) <cm_san>
+  $ git checkout 559668c          # 非分支，而是分离式头指针,此种状态下的提交不会被关联到，从而可能丢失
+  $ cat .git/HEAD 
+  559668ca9a7dfeeb58fc3508be0877dbd1ff761e
+#+END_SRC
+
+** merge
+
+#+BEGIN_SRC sh
+  ,*   fc0ea10 - (HEAD, master) git checkout master 后，git merge f35d59c # 挽救分离式头指针
+  |\  
+  | * f35d59c - git checkout 559668c 之后，修改，提交(伪第二次提交)
+  ,* | a9e09ec - 第二次提交
+  |/  
+  ,* 559668c - 第一次提交
+#+END_SRC
+
+** checkout
+
+只有HEAD切换到一个分支才可以对提交进行跟踪，否则仍然会进入“分离头指针”的状态
+
+* 恢复进度
+
+#+BEGIN_SRC sh
+  $ git stash list
+  $ git stash pop
+#+END_SRC
+
+*$ cat .git/refs/stash*
+
+#+BEGIN_SRC sh
+  $ git stash save "2nd stash"
+  $ git stash list 
+  stash@{0}: On master: 2nd stash
+  stash@{1}: On master: 1st stash
+  $ git stash apply stash@{1}     # 不删除，只应用
+  $ git stash drop stash@{1}      # 删
+  $ git stash clear               # 删除所有
+#+END_SRC
+
+* demo
+
+** 恢复删除的文件
+
+#+BEGIN_SRC sh
+  ,* 5c4e2c0 - delete file
+  ,* fc0ea10 - xx
+  $git cat-file -p HEAD～1:id.txt＞id.txt # HEAD～1即相当于HEAD^,都指的是HEAD的上一次提交
+  $ git show HEAD^:id.txt>id.txt          # 与上一条指令一样
+  $ git checkout HEAD~1 -- id.txt         # 更简单的做法
+#+END_SRC
+
+*$ git rev-parse HEAD master*
+
+** 显示版本号
+
+#+BEGIN_SRC sh
+  $ git tag -m "initial_commit" xxorig 559668c
+  $ git log --oneline --decorate
+  dc29a2e (HEAD, master) again
+  559668c (tag: xxorig) x
+  $ git rev-parse --symbolic --tags
+  rmf
+  xxorig
+#+END_SRC
+
+** 选择性添加
+
+#+BEGIN_SRC sh
+  $git add -i
+#+END_SRC
+
+** 忽略
+
+*** 全局忽略
+
+#+BEGIN_SRC sh
+  $ git config --global core.excludesfile ~/.gitignore
+#+END_SRC
+
+*** 忽略语法
+
+忽略文件中的空行或以井号（#）开始的行会被忽略。
+
+可以使用通配符，参见Linux手册：glob（7）。例如：星号（*）代表任意多字符，问号（？）代表一个字符，方括号（[abc]）代表可选字符范围等。
+
+如果名称的最前面是一个路径分隔符（/），表明要忽略的文件在此目录下，而非子目录的文件。
+
+如果名称的最后面是一个路径分隔符（/），表明要忽略的是整个目录，同名文件不忽略，否则同名的文件和目录都忽略。
+
+通过在名称的最前面添加一个感叹号（！），代表不忽略。
+
+#+BEGIN_SRC quote
+#这是注释行--被忽略
+*.a # 忽略所有以.a为扩展名的文件。
+!lib.a # 但是lib.a文件或目录不要忽略,即使前面设置了对*.a的忽略。
+/TODO # 只忽略此目录下的TODO文件,子目录的TODO文件不忽略。
+build/ # 忽略所有build/目录下的文件。
+doc/*.txt # 忽略文件如doc/notes.txt,但是文件如doc/server/arch.txt不被忽略。
+#+END_SRC
+
+* 历史穿梭
+
+gitk,tcl/tk
+
+gitg, gtk+
+
+qgit, qt
+
+** rev-parse,rev-list
+
+#+BEGIN_SRC sh
+  $ git rev-parse --symbolic --tags
+  rmf
+  xxorig
+  $ git rev-list --oneline rmf...xxorig
+#+END_SRC
+
+#+BEGIN_SRC sh
+  $ git rev-list --oneline HEAD
+  dc29a2e again
+  b49785c remove file
+  fc0ea10 manually resolve conflict
+  f35d59c new 2nd commit
+  a9e09ec 343
+  559668c x
+  $ git log --oneline --decorate
+  dc29a2e (HEAD, master) again
+  b49785c (tag: rmf) remove file
+  fc0ea10 manually resolve conflict
+  f35d59c new 2nd commit
+  a9e09ec 343
+  559668c (tag: xxorig) x
+  $ git rev-list --oneline rmf
+  b49785c remove file
+  fc0ea10 manually resolve conflict
+  f35d59c new 2nd commit
+  a9e09ec 343
+  559668c x
+  $ git lg
+  ,* dc29a2e - (HEAD, master) again (3 hours ago) <cm_san>
+  ,* b49785c - (rmf) remove file (3 hours ago) <cm_san>
+  ,*   fc0ea10 - manually resolve conflict (4 hours ago) <cm_san>
+  |\  
+  | * f35d59c - new 2nd commit (4 hours ago) <cm_san>
+  ,* | a9e09ec - 343 (4 hours ago) <cm_san>
+  |/  
+  ,* 559668c - (xxorig) x (4 hours ago) <cm_san>
+  san@rms:/dev/shm/ex/demo$ git rev-parse --oneline rmf^ rmf^^ rmf~3 # ^,第一个父提交;  ^^,第二个父提交;  ~3,第三个父提交
+  --oneline
+  fc0ea10b90b7afc0fd4204cb68645ab6b507a214
+  a9e09ec9f3d18cf2eb02c30d852f05d39793106a
+  559668ca9a7dfeeb58fc3508be0877dbd1ff761e
+#+END_SRC
+
+** blame
+
+#+BEGIN_SRC sh
+  $git blame id.txt
+#+END_SRC
+
+* 改变历史
+
+** amend
+
+修改最后一次的提交消息
+
+#+BEGIN_SRC sh
+  $git commit --amend -m "new last commit message"
+#+END_SRC
+
+** 合并几次提交
+
+#+BEGIN_SRC sh
+  $ git lg
+  ,* ac57783 - (HEAD, master) again again again (7 seconds ago) <cm_san>
+  ,* b49785c - (rmf) remove file (3 hours ago) <cm_san>
+  ,* fc0ea10 - manually resolve conflict (4 hours ago) <cm_san>
+  $ git reset --soft HEAD^^       # 此时id.txt标记为modified
+  $ git add id.txt
+  $ git commit
+#+END_SRC
+
+** 提交重演
+
+*** cherry-pick
+
+目标，消除提交 D
+
+#+BEGIN_SRC sh
+  $ git log--oneline--decorate-6
+  b6f0b0a(HEAD,tag:F,master)modify hello.h
+  48456ab(tag:E)add hello.h
+  3488f2c(tag:D)move.gitignore outside also works.
+  b3af728(tag:C)ignore object files.
+  d71ce92(tag:B)Hello world in itialized.
+  c024f34(tag:A)README is from welcome.txt.
+  $ git checkout C
+  $ git cherry-pick master^       # 等效于 git cherry-pick E
+  $ git cherry-pick master        # 等效于 git cherry-pick F
+  $ git reset--hard F             # master 回到 F 上
+#+END_SRC
+
+*** rebase
+
+#+BEGIN_SRC sh
+  $ git lg
+  ,* f1b25c0 - (HEAD, F, master) 6 (64 minutes ago) <cm_san>
+  ,* 5772635 - (E) 5 (64 minutes ago) <cm_san>
+  ,* 69cd84a - (D) 4 (64 minutes ago) <cm_san>
+  ,* e4109c5 - (C) 3 (65 minutes ago) <cm_san>
+  ,* 5dd55ef - (B) 2 (65 minutes ago) <cm_san>
+  ,* 36a711f - (A) 1 (65 minutes ago) <cm_san>
+  $ git rebase --onto C D F       # git rebase --onto <newbase> <since> <till>
+  # 解决冲突后
+  $ git lg
+  ,* 716ca5f - (HEAD) 6 (2 seconds ago) <cm_san>
+  ,* cd06e72 - 5 (2 seconds ago) <cm_san>
+  ,* e4109c5 - (C) 3 (67 minutes ago) <cm_san>
+  ,* 5dd55ef - (B) 2 (67 minutes ago) <cm_san>
+  ,* 36a711f - (A) 1 (67 minutes ago) <cm_san>
+  $ git reset --hard 716c         # master 分支切回
+#+END_SRC
+
+** revert
+
+提交反转
+
+#+BEGIN_SRC sh
+  $ git revert HEAD               # 反转最后一次提交, 反复使用则反复反转
+#+END_SRC
+
+* git库管理
+
+#+BEGIN_SRC sh
+  $ git fsck
+  $ git prune
+  # 更常见的是用下面这条
+  $ git gc
+#+END_SRC
+
+* tag
+
+#+BEGIN_SRC sh
+  $ git tag -l
+  A
+  tmp
+  $ git tag -d tmp
+  Deleted tag 'tmp' (was 59394b8)
+  $ git log --oneline --decorate
+  $ git describe 098cfe
+#+END_SRC
+
+** 打tag
+
+*** 轻量级
+
+#+BEGIN_SRC sh
+  $ git tag tag-name
+#+END_SRC
+
+*** 带说明
+
+#+BEGIN_SRC sh
+  $ git tag -m "infomation" tag-name
+#+END_SRC
+
+*** 带签名
+
+#+BEGIN_SRC sh
+  $ git tag -s -m "gpg tag" gtag
+  gpg: skipped "sans <kumakichi@gmail.com>": secret key not available
+  gpg: signing failed: secret key not available
+  error: gpg failed to sign the data
+  error: unable to sign the tag
+  $ gpg --gen-key                 # 用户名必须是sans, 邮箱必须是kumakichi@gmail.com, 这两个要和git config契合
+  $ git tag -s -m "infomation" tag-name
+  $ git tag -v tag-name           # verify
+  $ git tag -d tag-name           # delete
+#+END_SRC
+
+** tag远程仓库处理
+
+*** push tag
+
+#+BEGIN_SRC sh
+  $ git push origin mytag         # push to remote
+  $ git push origin refs/tags/*   # push all tags to remote
+#+END_SRC
+
+*** del tag
+
+#+BEGIN_SRC sh
+  $ git push origin:mytag         # git push <remote-repository> [<refspec>...], refspec specify what destination ref to update with what source object
+#+END_SRC
+
+* 分支
+
+** new
+
+#+BEGIN_SRC sh
+  $ git branch br-name
+  $ git checkout br-name
+  $ git checkout -b br-name       # 与上面两条结合之后的效果等同
+#+END_SRC
+
+** merge
+
+#+BEGIN_SRC sh
+  $ git checkout master
+  $ git merge br-name
+  $ git branch -d br-name
+#+END_SRC
+
+* 远程版本库
+
+** 远程分支
+
+#+BEGIN_SRC sh
+  $ git branch -r
+#+END_SRC
+
+** 远程库
+
+#+BEGIN_SRC sh
+  $ git remote add new-remote URI # 添加
+  $ git remote set-url new-remote URI
+  $ git remote rename new-remote user2
+  $ git remote update             # 远程版本库更新
+  $ git remote rm user2
+#+END_SRC
+
+* 子模块
+
+#+BEGIN_SRC sh
+  $ git submodule add path-to-module mod-name
+#+END_SRC
+
+clone带子模块的版本库
+
+#+BEGIN_SRC sh
+  $ git submodule status
+  $ git submodule init
+  $ git submodule update
+#+END_SRC
+
+* git-svn
+
+** step1
+
+#+BEGIN_SRC sh
+  $ git svn clone                 # 等价于 git svn init 加 git svn fetch
+  # 普通的git add, git commit
+  $ git svn dcommit
+  # 如果提示 out of date,则需要先获取更新
+  $ git svn fetch
+  $ git svn rebase                # svn 是线性操作,所以这里需要rebase
+  # 如果有冲突，解决冲突后add 文件
+  $ git rebase --continue
+  # 一切妥当后，再次提交
+  $ git svn dcommit
+#+END_SRC
+
+** branch
+
+#+BEGIN_SRC sh
+  $ cat .git/config 
+  ...
+  [svn-remote "svn"]
+  ...
+      branches = branches/*:refs/remotes/*
+  ...
+  $ git checkout -b myhack refs/remotes/demo-1.0
+#+END_SRC
