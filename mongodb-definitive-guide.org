@@ -1,0 +1,248 @@
+#+TITLE: mongodb the definitive guide
+#+AUTHOR: kumakichi
+
+* 基础
+
+** 文档
+
+文档是键值对的 *有序* 集
+
+{'foo':3,"bar":"kumakichi"}
+
+** 集合
+
+集合就是一组文档
+
+如果文档是关系数据库的一行，集合就是一张表
+
+惯例使用点号(.)分隔不同命名空间的子集合,如: blog.posts, blog.authors
+
+** 数据库
+
+多个集合就组成数据库
+
+** start mongo
+
+#+BEGIN_SRC sh
+  $ mongod --dbpath . --httpinterface # 监控27017，http在28017
+  $ mongo                             # 运行javascript shell
+#+END_SRC
+
+** 基本操作
+
+#+BEGIN_SRC sh
+  $ use san                       # switch to db 'san'
+#+END_SRC
+
+*** insert
+
+#+BEGIN_SRC sh
+  san> tmp = {'title':'first post', 'author':'kumakichi', 'date':new Date()}
+  san> db.san.insert(tmp)
+#+END_SRC
+
+*** read
+
+#+BEGIN_SRC sh
+  san> db.san.findOne()
+#+END_SRC
+
+*** update
+
+#+BEGIN_SRC sh
+  san> tmp.comments=[]            # add a new field
+  san> db.san.update({'title':'first post'}, tmp) #  update san set xxx where title="first post"
+#+END_SRC
+
+*** remove
+
+#+BEGIN_SRC sh
+  db.san.remove({'title':'first post'})
+#+END_SRC
+
+** use MongoDB shell
+
+*** 连接
+
+**** 显式
+
+#+BEGIN_SRC sh
+  # 下面两条等效
+  $ mongo localhost:27017/san
+  $ mongo localhost/san
+#+END_SRC
+
+**** 隐式
+
+#+BEGIN_SRC sh
+  $ mongo --nodb
+  (nodb)> conn = new Mongo("localhost")
+  (nodb)> db = conn.getDB("san")
+#+END_SRC
+
+*** useful commands
+
+#+BEGIN_SRC sh
+  san> help
+  san> db.san.update              # 查看函数代码
+  san> run("ls","-l","/dev/shm/ex") # 执行命令行程序
+#+END_SRC
+
+*** .mongorc.js
+
+#+BEGIN_SRC sh
+  # 修改prompt,显示当前数据库名
+  prompt = function () {
+      if(typeof db == 'undefined')
+          return '(nodb)> ';
+      return db + "> ";
+  }
+#+END_SRC
+
+*** 多行编辑
+
+#+BEGIN_SRC sh
+  san> EDITOR="/usr/bin/emacsclient -c" # 可以写入.mongorc.js
+  san> edit tmp                   # 编辑我们之前创建的tmp
+#+END_SRC
+
+* 创建，更新，删除
+
+** bulk write
+
+#+BEGIN_SRC sh
+  san> db.san.insert([{'title':'b1'},{'title':'b2'},{'title':'b3'}]) # bulk write
+  san> db.mailinglist.remove({'opt-out':true})
+  san> db.san.drop()
+#+END_SRC
+
+** 修改器
+
+*** $set
+
+设置字段，不存在则创建
+
+#+BEGIN_SRC sh
+  san> db.san.update({'title':'b1'}, {"$set":{"favorite book":"war and peace"}}
+#+END_SRC
+
+*** $inc
+
+增加或减少已有的值(数值类型),不存在则创建
+
+#+BEGIN_SRC sh
+  san> db.san.find({'title':'b2'})
+  { "_id" : ObjectId("54aca251bb4db95ef5a68fb5"), "title" : "b2" }
+  
+  san> db.san.update({'title':'b2'}, {'$inc':{'cnt':-5}})
+  WriteResult({ "nMatched" : 1, "nUpserted" : 0, "nModified" : 1 })
+  
+  san> db.san.find({'title':'b2'})
+  { "_id" : ObjectId("54aca251bb4db95ef5a68fb5"), "title" : "b2", "cnt" : -5 }
+#+END_SRC
+
+*** $push
+
+如果数组存在，则在数组末尾添加一个元素;若不存在则创建
+
+#+BEGIN_SRC sh
+  san> db.san.find({'title':'b3'})
+  { "_id" : ObjectId("54aca251bb4db95ef5a68fb6"), "title" : "b3" }
+  
+  san> db.san.update({'title':'b3'}, {"$push":{"comments":{"name":"joe","email":"joe@test.com","content":"nice post"}}})
+  san> db.san.find({'title':'b3'})
+  { "_id" : ObjectId("54aca251bb4db95ef5a68fb6"), "title" : "b3", "comments" : [ { "name" : "joe", "email" : "joe@test.com", "content" : "nice post" } ] }
+#+END_SRC
+
+*** 删除元素
+
+{"$pop":{"key":1}} 从数组末尾删除一个元素
+
+{"$pop":{"key":-1}} 从数组头部删除一个元素
+
+基于条件而非元素位置来删除，可以使用 *$pull*
+
+#+BEGIN_SRC sh
+  san> db.san.insert({'todo':['eat','wash','read']})
+  san> db.san.update({'todo':'read'}, {"$pull":{"todo":"eat"}})
+  { "_id" : ObjectId("54aca8ecbb4db95ef5a68fb7"), "todo" : [ "wash", "read" ] }
+#+END_SRC
+
+*** upsert
+
+#+BEGIN_SRC sh
+  # original b2
+  { "_id" : ObjectId("54aca251bb4db95ef5a68fb5"), "title" : "b2", "cnt" : -5 }
+  # 第三个参数表示这是个upsert
+  san> db.san.update({'title':'b2'}, {"$inc":{"pageviews":1}}, true) # 存在 title == b2 则加1,不存在则创建
+#+END_SRC
+
+*** save
+
+#+BEGIN_SRC sh
+  san> x=db.san.findOne({'title':'b2'})
+  san> x.newfiled=88
+  san> db.san.save(x)             # 再也不用麻烦地 update 了
+#+END_SRC
+
+* 查询
+
+** 指定需要返回的键
+
+#+BEGIN_SRC sh
+  san> db.san.find({}, {'title':1,'author':1})
+#+END_SRC
+
+** 查询条件
+
+$lt,$lte,$gt,$gte,$ne之类
+
+#+BEGIN_SRC sh
+  san> db.san.find({'title':{'$ne':'b1','$ne':'b2'}}) # 过滤掉 'b1','b2'这两个title
+  san> db.san.find({'title':{'$in':['b1','b2']}})
+  san> db.san.find({'$or':[{'title':'b1'},{'author':'kumakichi'}]})
+  san> db.san.find({'title':{'$not':{'$in':['b1','b2']}}})
+  san> db.san.find({'$and':[{'title':'first post'},{'author':'kumakichi'}]})
+  san> db.san.find({'title':{"$not":/b.*/i}}) # 找出title不是b*这样的
+#+END_SRC
+
+** 查询数组
+
+*** $all
+
+#+BEGIN_SRC sh
+  food> db.food.find({'fruit':{$all:['banana','orange']}})
+#+END_SRC
+
+*** $size
+
+#+BEGIN_SRC sh
+  food> db.food.find({'fruit':{'$size':2}}) # 长度为2
+#+END_SRC
+
+*** $slice
+
+#+BEGIN_SRC sh
+  food> db.food.find({'fruit':{'$all':['banana','orange']}},{'fruit':{$slice:2}}) # 前两个
+  { "_id" : ObjectId("54acf01fbb4db95ef5a68fba"), "fruit" : [ "apple", "banana" ] }
+  
+  food> db.food.find({'fruit':{'$all':['banana','orange']}},{'fruit':{$slice:-2}}) # 最后两个
+  { "_id" : ObjectId("54acf01fbb4db95ef5a68fba"), "fruit" : [ "banana", "orange" ] }
+  
+  food> db.food.find({'fruit':{'$all':['banana','orange']}},{'fruit':{$slice:[2,1]}}) # 跳过前两个，输出一个
+  { "_id" : ObjectId("54acf01fbb4db95ef5a68fba"), "fruit" : [ "orange" ] }
+#+END_SRC
+
+** 游标
+
+#+BEGIN_SRC sh
+  san> db.san.find().limit(13).sort({'pageviews':1,'title':-1}) # title降序, pageviews升序
+  san> db.runCommand({getLastError:1})
+#+END_SRC
+
+* 索引
+
+#+BEGIN_SRC sh
+  san> db.san.ensureIndex({title:1})
+  san> db.san.dropIndex({"title":1})
+#+END_SRC
