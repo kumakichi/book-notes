@@ -178,3 +178,15 @@ demo.go
   CGO_ENABLED=1 GOOS=windows GOARCH=386 CC="i686-w64-mingw32-gcc -fno-stack-protector -D_FORTIFY_SOURCE=0 -lssp" go build demo.go
   wine demo.exe
 #+END_SRC
+
+** build native code with cgo
+
+after building a cross compile environment
+
+ie. after building windows 386/amd64 on my host running Ubuntu
+
+this way to build native code:
+
+#+BEGIN_SRC sh
+  CC=gcc go build
+#+END_SRC
