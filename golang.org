@@ -94,6 +94,59 @@ here is a example build for armv5 without cgo
   CGO_ENABLED=0 GOARM=5 GOOS=linux GOARCH=arm ./make.bash --no-clean
 #+END_SRC
 
+** more words for arm
+
+*** normal
+
+if you use *arm-linux-gnueabi-gcc*, just 
+
+#+BEGIN_SRC sh
+  CGO_ENABLED=1 GOARM=5 GOOS=linux GOARCH=arm CC_FOR_TARGET="arm-linux-gnueabi-gcc" ./make.bash
+#+END_SRC
+
+*** old tools
+
+for me, i use *arm_v5t_le-gcc*, when i use
+
+#+BEGIN_SRC sh
+  CGO_ENABLED=1 GOARM=5 GOOS=linux GOARCH=arm CC_FOR_TARGET="arm_v5t_le-gcc" ./make.bash
+#+END_SRC
+
+come across this error infomation:
+
+#+BEGIN_QUOTE
+armv5tl-montavista-linux-gnueabi/bin/ld: unrecognized option '--build-id=none'
+#+END_QUOTE
+
+this is because the *ld* is too old, so i modified src/cmd/go/build.go
+
+replace code snippet 
+
+#+BEGIN_SRC go
+  switch goos {
+  case "android", "dragonfly", "linux", "netbsd":
+      ldflags = append(ldflags, "-Wl,--build-id=none")
+  }
+#+END_SRC
+
+with 
+
+#+BEGIN_SRC sh
+  case "android", "dragonfly", "linux", "netbsd":
+      if !(goos == "linux" && goarch == "arm") {
+          ldflags = append(ldflags, "-Wl,--build-id=none")
+      }
+  }
+#+END_SRC
+
+all ok now
+
+because i use a seperate directory for arm 
+
+#+BEGIN_SRC sh
+  GOROOT=/var/virtual/go-arm CGO_ENABLED=1 GOARM=5 GOOS=linux GOARCH=arm CC_FOR_TARGET="arm_v5t_le-gcc" /var/virtual/go-arm/bin/go build demo.go
+#+END_SRC
+
 ** build for target
 
 here is a example build on Ubuntu for windows amd64
