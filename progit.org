@@ -307,7 +307,7 @@ git commit --amend  如同amend自己的意思,这个就是修改最后一次提
 
 git archive master --prefix='callmeyesan/' | gzip > `git describe master`.tar.gz
 
-git shorlog --no-merges master ### 简略log
+git shortlog --no-merges master ### 简略log
 
 * git-svn
 
