@@ -1,0 +1,5 @@
+* About
+
+  This repository contains my book notes written in [[http://orgmode.org/][orgmode]], just for self use
+
+  Most content is written in English, but also contains some simplified chinese
