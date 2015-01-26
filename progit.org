@@ -259,6 +259,27 @@ rebase完成之后，活动分支仍然是 experiment，这一点不会变
   git rebase --onto master exp~1 exp # 这样最后活动分支是exp
 #+END_SRC
 
+** 一旦分支中的提交对象发布到公共仓库，就千万不要对该分支进行衍合操作
+
+#+BEGIN_QUOTE
+如果你遵循这条金科玉律，就不会出差错。否则，人民群众会仇恨你，你的朋友和家人也会嘲笑你，唾弃你。
+#+END_QUOTE
+
+这句话应该解读为,不要在 master 分支上进行rebase(因为 master 是默认公共分支)
+
+例如: 在 master 分支上执行 *git rebase experiment* ，master 的提交历史就被破坏了(基础成了 experiment )，这样直接影响其他所有参与者(他们每个人在pull之后都需要合并操作)
+
+一般还是应该这么用:
+
+#+BEGIN_SRC sh
+  git rebase master experiment
+  # 这条指令等价于下面两条
+  git checkout experiment
+  git rebase master               # 以master最后一个提交为起点，应用master 和 experiment 最近的公共祖先之后的所有 experiment 提交
+#+END_SRC
+
+之后再 checkout master, merge experiment 就可以 fast-move
+
 * stash
 
 #+BEGIN_SRC sh
