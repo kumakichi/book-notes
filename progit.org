@@ -1,0 +1,367 @@
+#+TITLE: progit
+#+AUTHOR: kumakichi
+
+* cvcs/dvcs
+
+centralized version control system
+
+distributed version control system
+
+* config
+
+#+BEGIN_SRC sh
+  git config --global user.name xx
+  git config --global user.email xx@oo.com
+  git config --global core.editor xxoo
+#+END_SRC
+
+* help 
+
+#+BEGIN_SRC sh
+  git help commit
+#+END_SRC
+
+* diff
+
+#+BEGIN_SRC sh
+  git diff                        # 当前和暂存区之间的比较
+  git diff --cached               # 暂存区和上次提交之间的差异
+#+END_SRC
+
+* rm
+
+#+BEGIN_SRC sh
+  git rm --cached .svn            # 取消跟踪，但是不删除本地文件
+  git rm log/\*.log               # 反斜杠表示是不用bash扩展，让git使用自己的正则匹配。好处是，git会支持递归删除
+#+END_SRC
+
+* remote branch
+
+#+BEGIN_SRC sh
+  git remote add <rname> <URL>
+  git fetch <rname>
+  git remote show <rname>
+  git push <rname> <branch_name>  # git push origin master
+  git remote rename <from> <to>
+#+END_SRC
+
+* TAG
+
+** lightweight
+
+#+BEGIN_SRC sh
+  git tag simple-tag
+#+END_SRC
+
+** annotated
+
+#+BEGIN_SRC sh
+  git tag -a v1.4 -m "demo"
+  git tag -a v0.0 9fceb02         # 给历史打标签
+#+END_SRC
+
+** 推送标签到服务器
+
+#+BEGIN_SRC sh
+  git push origin <tagname>       # git push origin v1.2
+  git push origin --tags          # 一次推送所有的tag
+#+END_SRC
+
+* branch
+
+git 里，HEAD是一个指向你正在工作的本地分支的指针
+
+手动解决冲突后，用 *git add* 将文件标记为resolved，也可以考虑用 *git mergetool* 来解决
+
+*git branch --merged* 查看已经merge到master的分支，在此列表的，除了master，都可以删除
+
+** 远程分支
+
+仓库克隆的时候，git自动创建一个master分支来跟踪origin/master，这就是为什么 *git push* 和 *git pull* 可以工作
+
+git push的完整形式:
+#+BEGIN_SRC sh
+  git push <远程名> [本地分支名]:[远程分支名]
+  git push origin master:master
+#+END_SRC
+
+删除远程分支:
+
+#+BEGIN_SRC sh
+  git push origin :xxoo           # 本地分支名为空
+#+END_SRC
+
+** gen
+
+刚才我们已经看到了这样的一个例子：git checkout -b [分支名] [远程名]/[分支名]。
+
+如果你有 1.6.2 以上版本的 Git，还可以用 --track 选项简化：
+
+#+BEGIN_SRC sh
+  git checkout --track origin/serverfix
+  # Branch serverfix set up to track remote branch refs/remotes/origin/serverfix.
+  # Switched to a new branch "serverfix"
+#+END_SRC
+
+* merge
+
+#+BEGIN_SRC graph
+  C2 (experiment)
+ /
+C1
+ \
+  C3 (master)
+#+END_SRC
+
+#+BEGIN_SRC sh
+  git checkout master
+  git merge experiment
+#+END_SRC
+
+将两个分支最新的快照(C2,C3),以及二者最新的共同祖先(C1) 进行三方合并，产生一个新的提交对象(C4).
+
+#+BEGIN_SRC graph
+  C2(experiment)
+ /    \
+C1-C3-C4(master)
+#+END_SRC
+
+* rebase
+
+** normal
+
+好处是产生的提交历史比merge产生的干净
+
+#+BEGIN_SRC sh
+  git checkout experiment
+  git rebase master               # 找出master的experiment的最近一次的祖先，以master最后一次提交为起点,将祖先后的experiment修改依次应用到master上
+  # rebase 之后，活动分支是 experiment，后续就可以 checkout master, merge experiment，结局可能如下
+  
+  # * d18a064 - experiment1 (12 minutes ago) <cm_san>
+  # * e8cdb68 - (master) master1 (13 minutes ago) <cm_san>
+  # * eb557e5 - init (27 minutes ago) <cm_san>
+#+END_SRC
+
+如果rebase的时候，有conflicts,可能需要如下
+
+#+BEGIN_SRC sh
+    # git rebase --continue
+    # git mergetool
+    # git rebase --continue
+#+END_SRC
+
+rebase完成之后，活动分支仍然是 experiment，这一点不会变
+
+#+BEGIN_SRC sh
+  git checkout experiment
+  git rebase master
+  
+  # 可以简单写为
+  
+  git rebase master experiment    # 完成后活动分支仍然是 experiment
+#+END_SRC
+
+** onto
+
+#+BEGIN_SRC sh
+  c1<--c2<--c5<--c6[master]
+         |
+        c3<--c4<--c10[server]
+         |<--c8<--c9[client]
+#+END_SRC
+
+*** rebase
+
+这基本上等于在说"检出 client 分支，找出 server 分支和 client 分支的共同祖先之后的变化，然后把它们在 master 上重演一遍"。
+
+执行之后,效果如图:
+
+#+BEGIN_SRC sh
+  git rebase --onto master server client
+  
+  c1<--c2<--c5<--c6[master]<--c8*<--c9*[client]
+         |
+        c3<--c4<--c10[server]
+#+END_SRC
+
+*** merge
+
+#+BEGIN_SRC sh
+  git checkout master
+  git merge client 
+  
+  c1<--c2<--c5<--c6<--c8*<--c9*[client][master]
+         |
+        c3<--c4<--c10[server]
+#+END_SRC
+
+*** rebase
+
+#+BEGIN_SRC sh
+  git rebase master server   #### 于是 server 的进度应用到 master 的基础上
+  
+  c1<--c2<--c5<--c6<--c8*<--c9*[client][master]<--c3*<--c4*<--c10*[server]
+#+END_SRC
+
+*** merge
+
+#+BEGIN_SRC sh
+  git checkout master
+  git merge server
+  
+  c1<--c2<--c5<--c6<--c8*<--c9*[client]<--c3*<--c4*<--c10*[server][master]
+#+END_SRC
+
+*** delete branches
+
+#+BEGIN_SRC sh
+  git branch -d server
+  git branch -d client
+#+END_SRC
+
+** 部分合并
+
+如果只想应用部分提交，而不是一整个分支，如此这般:
+
+#+BEGIN_SRC sh
+  # master
+  ,* 2d4420b - (HEAD, master) m1 (12 hours ago) <san>
+  ,* f0edaf4 - init (12 hours ago) <san>
+#+END_SRC
+
+#+BEGIN_SRC sh
+  # exp
+  ,* 83dc31c - (HEAD, exp) exp 2 (11 hours ago) <san>
+  ,* d8423bc - exp1 (12 hours ago) <san>
+  ,* f0edaf4 - init (12 hours ago) <san>
+#+END_SRC
+
+如果只想将 exp2 这个提交合并到master，这样操作
+
+#+BEGIN_SRC sh
+  git co exp                      # 如果直接git co master, 然后git rebase exp 的话，就是应用了整个exp的提交
+  git rebase --onto master HEAD~1 HEAD # 取出HEAD~1 和 HEAD，从它们的共同祖先(就是HEAD~1)往后，应用补丁到master分支上
+  # merge 和　rebase --continue　之后会detached（因为rebase的时候不是应用的分支名）,需要手动分支
+  # 如,最终提交:
+  # * 64afdba - (HEAD) exp 2 (2 minutes ago) <san>
+  # * 2d4420b - (master) m1 (12 hours ago) <san>
+  # * f0edaf4 - init (12 hours ago) <san>
+  
+  # 给 detached 的 64afdba 命名
+  # git branch kumakichi 64afdba 
+  
+  # rebase --onto 那里也可以直接写:
+  # git rebase --onto master d8423bc 83dc31c
+#+END_SRC
+
+#+BEGIN_SRC sh
+  git co master
+  git rebase --onto master exp~1 exp # 这样最后活动分支是exp
+#+END_SRC
+
+* stash
+
+#+BEGIN_SRC sh
+  git stash save xxoo
+  git stash list
+  git stash pop
+  git stash append stash@{1}
+#+END_SRC
+
+* 修改
+
+** amend
+
+git commit --amend  如同amend自己的意思,这个就是修改最后一次提交
+
+如果刚才提交时忘了暂存某些修改，可以先补上暂存操作，然后再运行 --amend 提交：
+
+#+BEGIN_SRC sh
+  git commit -m 'initial commit'
+  git add forgotten_file
+  git commit --amend
+#+END_SRC
+
+** 取消已经暂存的文件
+
+#+BEGIN_SRC sh
+  git reset HEAD <file>
+#+END_SRC
+
+** 取消已经做出的修改
+
+这条命令很危险,将会丢失修改,千万慎重
+
+#+BEGIN_SRC sh
+  git checkout -- <file>
+#+END_SRC
+
+* to github
+
+#+BEGIN_SRC sh
+  git remote add origin xx@github.com:oo/xxoo.git
+  git push origin master          # 推送 master 分支
+#+END_SRC
+
+* git 打包
+
+git archive master --prefix='callmeyesan/' | gzip > `git describe master`.tar.gz
+
+git shorlog --no-merges master ### 简略log
+
+* git-svn
+
+** 获取
+
+#+BEGIN_SRC sh
+  git svn clone https://demo.googlecode.com/svn/trunk/ --username user@gmail.com
+#+END_SRC
+
+** 提交
+
+#+BEGIN_SRC sh
+  git svn dcommit
+#+END_SRC
+
+** 最后几个版本
+
+#+BEGIN_SRC sh
+  git svn clone -r HEAD~10:HEAD --prefix=svn/ http://your-svn # 只获取最后10次提交,以此减少时间消耗
+#+END_SRC
+
+* log
+
+#+BEGIN_SRC sh
+  选项 说明
+  -p 按补丁格式显示每个更新之间的差异。
+  --stat 显示每次更新的文件修改统计信息。
+  --shortstat 只显示 --stat 中最后的行数修改添加移除统计。
+  --name-only 仅在提交信息后显示已修改的文件清单。
+  --name-status 显示新增、修改、删除的文件清单。
+  --abbrev-commit 仅显示 SHA-1 的前几个字符，而非所有的 40 个字符。
+  --relative-date 使用较短的相对时间显示（比如，“2 weeks ago”）。
+  --graph 显示 ASCII 图形表示的分支合并历史。
+  --pretty 使用其他格式显示历史提交信息。可用的选项包括 oneline，short，full，fuller 和 format（后跟指定格式）。
+#+END_SRC
+
+#+BEGIN_SRC sh
+  git log --pretty 会有各种控制
+    ---> git log --pretty=format:"%h - %an, %ar : %s"   
+  
+  选项     说明
+  %H  提交对象（commit）的完整哈希字串
+  %h  提交对象的简短哈希字串
+  %T  树对象（tree）的完整哈希字串
+  %t  树对象的简短哈希字串
+  %P  父对象（parent）的完整哈希字串
+  %p  父对象的简短哈希字串
+  %an 作者（author）的名字
+  %ae 作者的电子邮件地址
+  %ad 作者修订日期（可以用 -date= 选项定制格式）
+  %ar 作者修订日期，按多久以前的方式显示
+  %cn 提交者(committer)的名字
+  %ce 提交者的电子邮件地址
+  %cd 提交日期
+  %cr 提交日期，按多久以前的方式显示
+  %s  提交说明
+#+END_SRC
