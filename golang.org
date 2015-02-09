@@ -190,3 +190,101 @@ this way to build native code:
 #+BEGIN_SRC sh
   CC=gcc go build
 #+END_SRC
+
+* cgo
+
+** multiple definition
+
+*** phenomenon
+
+demo.go
+
+#+BEGIN_SRC go
+  package main
+  
+  /*
+  #include <stdio.h>
+  void funcWrittenInGo(void);
+  
+  void bbb(void)
+  {
+      printf("I'm bbb.\n");
+      funcWrittenInGo();
+  }
+  
+  void aaa(void)
+  {
+      printf("I'm aaa.\n");
+      bbb();
+  }
+  ,*/
+  import "C"
+  import "fmt"
+  
+  func main() {
+      C.aaa()
+  }
+  
+  //export funcWrittenInGo
+  func funcWrittenInGo() {
+      fmt.Println("I'm written in go")
+  }
+#+END_SRC
+
+#+BEGIN_SRC sh
+  CC=gcc go build demo.go         # shows multiple definition error
+#+END_SRC
+
+*** the reason
+
+#+BEGIN_SRC sh
+  go tool cgo demo.go
+  cd _obj
+  grep bbb * -R -n
+#+END_SRC
+
+you will find that both *_cgo_export.h* and *demo.cgo2.c* have the definition of *aaa* and *bbb*
+
+*** how to solve
+
+quite simple, if you use *//export* in go file, put cgo code into a seperate C file
+
+demo.go
+#+BEGIN_SRC go
+  package main
+  
+  /*
+  void aaa(void);
+  void bbb(void);
+  ,*/
+  import "C"
+  import "fmt"
+  
+  func main() {
+      C.aaa()
+  }
+  
+  //export funcWrittenInGo
+  func funcWrittenInGo() {
+      fmt.Println("I'm written in go")
+  }
+#+END_SRC
+
+lib.c
+#+BEGIN_SRC c
+  #include <stdio.h>
+  void funcWrittenInGo(void);
+  
+  void bbb(void)
+  {
+      printf("I'm bbb.\n");
+      funcWrittenInGo();
+  }
+  
+  void aaa(void)
+  {
+      printf("I'm aaa.\n");
+      bbb();
+  }
+#+END_SRC
+
