@@ -288,3 +288,24 @@ lib.c
   }
 #+END_SRC
 
+* channel
+
+** one direction channel
+
+two way to declare readonly channel
+
+#+BEGIN_SRC go
+  ch := make(chan int)
+  
+  var cr <-chan int = ch
+  // or
+  cr := (<-chan int)(ch)          // cr := <-chan int(ch) is not right
+#+END_SRC
+
+for writeonly channel, quite simple
+
+#+BEGIN_SRC go
+  cw := chan<- int(ch)
+  // or
+  var cw chan<- int = ch
+#+END_SRC
