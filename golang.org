@@ -193,6 +193,11 @@ this way to build native code:
 
 * cgo
 
+referenced:
+
+[[https://groups.google.com/forum/#!topic/golang-nuts/qIPigBYiEGo][cgo: calling Go functions from C]]
+[[https://github.com/golang/go/issues/3497][cmd/cgo: document preamble/export restriction]]
+
 ** multiple definition
 
 *** phenomenon
@@ -308,4 +313,84 @@ for writeonly channel, quite simple
   cw := chan<- int(ch)
   // or
   var cw chan<- int = ch
+#+END_SRC
+
+* conditional compilation
+
+** build tags
+
+*** Build tags must use the // form
+
+#+BEGIN_SRC go
+  // +build ...
+#+END_SRC
+
+*** three rules
+
++ a build tag is evaluated as the OR of space-separated options
+  #+BEGIN_SRC go
+    // build linux darwin  
+  #+END_SRC
++ each option evaluates as the AND of its comma-separated terms
+  #+BEGIN_SRC go
+    // build linux,386
+  #+END_SRC
++ each term is an alphanumeric word or, preceded by !, its negation
+  #+BEGIN_SRC go
+    // build !windows
+  #+END_SRC
+
+** copyright headers
+
+*** rule1
+
+Most licences that recommend copyright headers require them to be at the top of the file, this means they *must come before a package declaration, and its comment*
+
+*** rule2
+
+You probably don't want the copyright header being part of your godoc, so the *comment block holding the copyright header* and the *package declaration* should be *separated by a newline*
+
+*** rule3
+
+If you have any build tags, they should also appear between the copyright block and the package declaration. As all three are separate comment, they should be separated by a newline
+
+#+BEGIN_SRC go
+  // Copyright Commodore Inc, 1982
+  
+  // +build 6502
+  
+  // Package c64 is the computer for the masses, not the classes.
+  package c64
+#+END_SRC
+
+** using list and vet
+
+*** go list
+
+#+BEGIN_SRC sh
+  $ ls *.go
+  cgo.go  cx.go  diskid_linux.go  diskid_windows.go
+  $ go list -f '{{.GoFiles}} {{.CgoFiles}}' .
+  [cx.go diskid_linux.go] [cgo.go]
+#+END_SRC
+
+*** go vet
+
+#+BEGIN_SRC sh
+  $ cat demo.go 
+  package main
+  //+build !linux
+  
+  func main() {
+  }
+  $ go vet demo.go 
+  demo.go:2: +build comment must appear before package clause and be followed by a blank line
+#+END_SRC
+
+** file suffixes
+
+#+BEGIN_SRC sh
+  mypkg_freebsd_arm.go // only builds on freebsd/arm
+  mypkg_plan9.go       // only builds on plan9
+  mypkg_windows_amd64.go // only builds on windows 64bit platforms
 #+END_SRC
