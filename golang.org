@@ -304,7 +304,7 @@ two way to declare readonly channel
   
   var cr <-chan int = ch
   // or
-  cr := (<-chan int)(ch)          // cr := <-chan int(ch) is not right
+  cr := (<-chan int)(ch)          // cr := <-chan int(ch) is not right, which actually means <-(chan int(ch))
 #+END_SRC
 
 for writeonly channel, quite simple
@@ -393,4 +393,24 @@ If you have any build tags, they should also appear between the copyright block 
   mypkg_freebsd_arm.go // only builds on freebsd/arm
   mypkg_plan9.go       // only builds on plan9
   mypkg_windows_amd64.go // only builds on windows 64bit platforms
+#+END_SRC
+
+* static linking
+
+#+BEGIN_SRC go
+  package main
+  
+  /*
+  #include <stdio.h>
+  void xxoo(int a, int b) { printf("%d\n", a+b); }
+  ,*/
+  import "C"
+  
+  func main() {
+      C.xxoo(3, 4)
+  }
+#+END_SRC
+
+#+BEGIN_SRC sh
+  go build --ldflags='-linkmode external -extldflags "-static"'
 #+END_SRC
