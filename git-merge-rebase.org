@@ -1,0 +1,87 @@
+* merge
+
+#+BEGIN_SRC graph
+  C2 (experiment)
+ /
+C1
+ \
+  C3 (master)
+#+END_SRC
+
+#+BEGIN_SRC sh
+  git checkout master
+  git merge experiment
+#+END_SRC
+
+将两个分支最新的快照(C2,C3),以及二者最新的共同祖先(C1) 进行三方合并，产生一个新的提交对象(C4).
+
+#+BEGIN_SRC graph
+  C2(experiment)
+ /    \
+C1-C3-C4(master)
+#+END_SRC
+
+* rebase
+
+** normal
+
+#+BEGIN_SRC graph
+  C2 - C3 (experiment)
+ /
+C1
+ \
+  C4 (master)
+#+END_SRC
+
+#+BEGIN_SRC sh
+  git checkout experiment
+  git rebase master
+  # 或者直接 git rebase master experiment
+
+  # if there exists conflicts,then
+  # git rebase --continue
+  # git mergetool
+  # git rebase --continue   # 此时,current branch 仍然是experiment
+#+END_SRC
+
+回到两个分支最近的共同祖先(C1)，根据当前分支（也就是要进行衍合的分支 experiment）后续的历次提交对象（这里有两个:c2,C3），生成一系列文件补丁，然后以基底分支（master）最后一个提交对象（C4）为新的出发点，逐个应用之前准备好的补丁文件，最后会生成一个新的合并提交对象，从而改写 experiment 的提交历史，使它成为 master 分支的直接下游
+
+接着就可以切回master，然后merge(此时 experiment 的提交历史为 C1-C4-C2'-C3')
+
+** partial
+
+如果只想应用部分提交，而不是一整个分支，如此这般:
+
+#+BEGIN_SRC sh
+  # master
+  ,* 2d4420b - (HEAD, master) m1 (12 hours ago) <san>
+  ,* f0edaf4 - init (12 hours ago) <san>
+#+END_SRC
+
+#+BEGIN_SRC sh
+  # exp
+  ,* 83dc31c - (HEAD, exp) exp 2 (11 hours ago) <san>
+  ,* d8423bc - exp1 (12 hours ago) <san>
+  ,* f0edaf4 - init (12 hours ago) <san>
+#+END_SRC
+
+如果只想将 exp2 这个提交合并到master，这样操作
+
+#+BEGIN_SRC sh
+  git co exp                      # 如果直接git co master, 然后git rebase exp 的话，就是应用了整个exp的提交
+  git rebase --onto master HEAD~1 HEAD # 取出HEAD~1 和 HEAD，从它们的共同祖先(就是HEAD~1)往后，应用补丁到master分支上
+  # merge 和　rebase --continue　之后会detached（因为rebase的时候不是应用的分支名）,需要手动分支
+  # 如,最终提交:
+  # * 64afdba - (HEAD) exp 2 (2 minutes ago) <san>
+  # * 2d4420b - (master) m1 (12 hours ago) <san>
+  # * f0edaf4 - init (12 hours ago) <san>
+  # git branch kumakichi 64afdba
+  
+  # rebase --onto 那里也可以直接写:
+  # git rebase --onto master d8423bc 83dc31c
+#+END_SRC
+
+#+BEGIN_SRC sh
+  git co master
+  git rebase --onto master exp~1 exp # 这样最后活动分支是exp
+#+END_SRC
